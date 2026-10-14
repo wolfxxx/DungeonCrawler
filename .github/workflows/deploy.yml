@@ -28,11 +28,11 @@ jobs:
       - name: Download Godot 4.5 & Web Export Templates
         run: |
           wget -q https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip
-          wget -q https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_export_templates.tpk
+          wget -q https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_export_templates.tpz
           unzip -q Godot_v4.5-stable_linux.x86_64.zip
           chmod +x Godot_v4.5-stable_linux.x86_64
           mkdir -p ~/.local/share/godot/export_templates/4.5.stable
-          unzip -q Godot_v4.5-stable_export_templates.tpk
+          unzip -q Godot_v4.5-stable_export_templates.tpz
           mv templates/* ~/.local/share/godot/export_templates/4.5.stable/
 
       - name: Import & Export Web Build
