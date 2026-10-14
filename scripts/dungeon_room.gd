@@ -105,6 +105,8 @@ func _ready():
 		_capture_showcase_screenshots()
 
 func _clear_floor_nodes():
+	for c in enemies_root.get_children():
+		c.remove_from_group("enemies")
 	for root in [arch_root, props_root, lights_root, gates_root, enemies_root, pickups_root]:
 		for c in root.get_children():
 			c.queue_free()
@@ -206,8 +208,20 @@ func _process(delta: float):
 
 		# Auto-descend if player walks directly into the active Descent Portal ring
 		if is_instance_valid(descent_portal) and descent_portal_active_timer <= 0.0:
-			if player.global_position.distance_to(descent_portal.global_position) < 1.85:
+			if player.global_position.distance_to(descent_portal.global_position) < 2.2:
 				_descend_to_next_floor()
+
+	# Continuous failsafe gate check so a cleared chamber's door ALWAYS opens immediately
+	for cid in [0, 1, 2]:
+		if gate_nodes.has(cid):
+			var alive_in_cid := 0
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if is_instance_valid(e) and not e.get("is_dead") and e.get("chamber_id") == cid:
+					alive_in_cid += 1
+			if alive_in_cid == 0:
+				_open_gate(cid)
+			elif door_labels.has(cid) and is_instance_valid(door_labels[cid]):
+				door_labels[cid].text = "SEALED DOOR — %d Enemies Left" % alive_in_cid
 
 func _build_dungeon_architecture(torch_col: Color):
 	# 4 Chambers spanning Z from +8 down to -72 (20m per chamber), X from -10 to +10 (5 tiles wide = 20m)

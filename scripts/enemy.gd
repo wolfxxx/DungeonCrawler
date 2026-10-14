@@ -154,7 +154,7 @@ func _physics_process(delta: float):
 		velocity = knockback_vel
 
 	move_and_slide()
-	global_position.y = 0.0
+	global_position = _clamp_to_chamber(global_position)
 	_animate_monster(delta)
 
 func _set_blocking(active: bool):
@@ -532,14 +532,39 @@ func _perform_golem_ground_slam():
 	await get_tree().create_timer(attack_cooldown).timeout
 	can_attack = true
 
+func _clamp_to_chamber(pos: Vector3) -> Vector3:
+	var min_z := -6.8
+	var max_z := 6.8
+	match chamber_id:
+		0:
+			min_z = -6.8
+			max_z = 6.8
+		1:
+			min_z = -26.8
+			max_z = -9.2
+		2:
+			min_z = -46.8
+			max_z = -29.2
+		3:
+			min_z = -70.5
+			max_z = -49.2
+	return Vector3(
+		clampf(pos.x, -8.4, 8.4),
+		0.0,
+		clampf(pos.z, min_z, max_z)
+	)
+
 func _perform_mage_blink(away_dir: Vector3):
 	var norm = away_dir.normalized() if away_dir.length() > 0.01 else Vector3.BACK
-	var dest = global_position + norm * 5.2
-	dest.x = clampf(dest.x, -8.2, 8.2)
+	var dest = _clamp_to_chamber(global_position + norm * 5.2)
+	# If blinking away hits the chamber boundary wall, blink laterally across the room instead
+	if dest.distance_to(global_position) < 2.2:
+		var side_dir = Vector3(-norm.z, 0.0, norm.x) * (1.0 if global_position.x <= 0.0 else -1.0)
+		dest = _clamp_to_chamber(global_position + side_dir * 5.5 - norm * 2.0)
 	_spawn_status_text("SHADOW BLINK!", Color(0.75, 0.35, 1.0))
 	var tw = create_tween()
 	tw.tween_property(pivot, "scale", Vector3(0.1, 1.5, 0.1), 0.12)
-	tw.tween_callback(func(): global_position = Vector3(dest.x, 0.0, dest.z))
+	tw.tween_callback(func(): global_position = dest)
 	tw.tween_property(pivot, "scale", Vector3.ONE, 0.14)
 
 func _cast_predictive_bolt():
