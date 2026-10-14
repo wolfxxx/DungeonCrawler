@@ -18,28 +18,28 @@ concurrency:
 jobs:
   export-game:
     runs-on: ubuntu-latest
-    name: Export Game (Godot 4.5 Web)
+    name: Export Game (Godot 4.7.2 Web)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Download Godot 4.5 & Web Export Templates
+      - name: Download Godot 4.7.2 & Web Export Templates
         run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip
-          wget -q https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_export_templates.tpz
-          unzip -q Godot_v4.5-stable_linux.x86_64.zip
-          chmod +x Godot_v4.5-stable_linux.x86_64
-          mkdir -p ~/.local/share/godot/export_templates/4.5.stable
-          unzip -q Godot_v4.5-stable_export_templates.tpz
-          mv templates/* ~/.local/share/godot/export_templates/4.5.stable/
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz
+          unzip -q Godot_v4.7.2-stable_linux.x86_64.zip
+          chmod +x Godot_v4.7.2-stable_linux.x86_64
+          mkdir -p ~/.local/share/godot/export_templates/4.7.2.stable
+          unzip -q Godot_v4.7.2-stable_export_templates.tpz
+          mv templates/* ~/.local/share/godot/export_templates/4.7.2.stable/
 
       - name: Import & Export Web Build
         run: |
           mkdir -p build/web
-          ./Godot_v4.5-stable_linux.x86_64 --headless --import
-          ./Godot_v4.5-stable_linux.x86_64 --headless --export-release "Web" ./build/web/index.html
+          ./Godot_v4.7.2-stable_linux.x86_64 --headless --import
+          ./Godot_v4.7.2-stable_linux.x86_64 --headless --export-release "Web" ./build/web/index.html
           ls -la build/web
 
       - name: Upload Pages Artifact
