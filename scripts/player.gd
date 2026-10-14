@@ -137,9 +137,13 @@ func handle_combat():
 		perform_attack()
 
 func perform_attack():
+	if current_stamina < 8.0:
+		spawn_floating_text("NO STAMINA!", Color(1.0, 0.55, 0.2))
+		return
+	current_stamina -= 8.0
 	is_attacking = true
 	combo_step = (combo_step % 3) + 1
-	combo_reset_timer = 0.9
+	combo_reset_timer = 0.85
 
 	var audio = get_tree().get_first_node_in_group("audio_manager")
 	if audio:
@@ -147,7 +151,7 @@ func perform_attack():
 
 	# Forward lunge on combo
 	var forward = -pivot.global_transform.basis.z.normalized()
-	velocity += forward * (3.5 if combo_step < 3 else 6.0)
+	velocity += forward * (2.6 if combo_step < 3 else 4.8)
 
 	# Animate sword arm slash (in Model's local space where +Z is forward and +X is left)
 	if part_arm_r:
@@ -166,11 +170,13 @@ func perform_attack():
 	attack.damage = int(round(attack_damage * dmg_mult))
 	attack.is_special = false
 	attack.attacker = self
+	attack.forward_dir = forward
 	get_parent().add_child(attack)
-	attack.global_position = global_position + forward * 1.35
+	attack.global_position = global_position + forward * 1.15
 	attack.rotation.y = pivot.rotation.y
 
-	await get_tree().create_timer(0.24).timeout
+	_sync_ui()
+	await get_tree().create_timer(0.28 if combo_step < 3 else 0.36).timeout
 	is_attacking = false
 
 func perform_special_nova():
