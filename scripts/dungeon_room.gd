@@ -1,7 +1,10 @@
 extends Node3D
-## 3D Multi-Chamber Dungeon Generator & Room Manager
-## Builds 4 interconnected 3D KayKit Dungeon Chambers with Portcullis Gates, Breakable Barrels,
-## Golden Relic Chests, Flickering Torchlight, and Custom Blender 3D Monsters & Boss
+## 3D Multi-Floor & Multi-Chamber Dungeon Generator & Room Manager
+## Features:
+## - 3 Escalating Dungeon Floors (Catacombs -> Frostbitten Ossuary -> Infernal Sanctum)
+## - 4 Interconnected KayKit 3D Chambers per Floor with Hinged Doors
+## - Mystic Dungeon Merchant Stalls (Press [F] to spend Gold on Relics, Weaponsmithing, & Perks)
+## - Descent Portal at the North Grand Stairs after defeating Floor 1 & Floor 2 Bosses
 
 @onready var arch_root: Node3D = $Architecture
 @onready var props_root: Node3D = $Props
@@ -29,6 +32,8 @@ var glb_chest_gold := preload("res://addons/kaykit_dungeon_remastered/Assets/glt
 var glb_table := preload("res://addons/kaykit_dungeon_remastered/Assets/gltf/table_long_tablecloth_decorated_A.gltf.glb")
 var glb_shelf := preload("res://addons/kaykit_dungeon_remastered/Assets/gltf/shelf_small_candles.gltf.glb")
 var glb_stairs := preload("res://addons/kaykit_dungeon_remastered/Assets/gltf/stairs_walled.gltf.glb")
+var glb_coins := preload("res://addons/kaykit_dungeon_remastered/Assets/gltf/coin_stack_small.gltf.glb")
+var glb_merchant_npc := preload("res://models/enemy_mage.glb")
 
 # Preloaded Enemy & Pickup Scenes
 var scn_skeleton := preload("res://scenes/enemy.tscn")
@@ -36,33 +41,126 @@ var scn_goblin := preload("res://scenes/enemy_fast.tscn")
 var scn_golem := preload("res://scenes/enemy_tank.tscn")
 var scn_pickup := preload("res://scenes/health_pickup.tscn")
 
-var chamber_names := [
-	"I. Entry Hall of the Catacombs",
-	"II. The Pillared Crypt",
-	"III. Sanctum of the Obsidian Guard",
-	"IV. Throne of the Abyssal Warden"
-]
+const MAX_FLOORS: int = 3
+var current_floor: int = 1
 
+const FLOOR_THEMES := {
+	1: {
+		"name": "The Forgotten Catacombs",
+		"light_color": Color(1.0, 0.65, 0.28),
+		"boss_name": "The Abyssal Warden",
+		"chambers": [
+			"I. Entry Hall of the Catacombs",
+			"II. The Pillared Crypt",
+			"III. Sanctum of the Obsidian Guard",
+			"IV. Throne of the Abyssal Warden"
+		]
+	},
+	2: {
+		"name": "The Frostbitten Ossuary",
+		"light_color": Color(0.32, 0.78, 1.0),
+		"boss_name": "Malakor, Archlich of Frost",
+		"chambers": [
+			"I. Glacial Vestibule",
+			"II. Hall of Frozen Pillars",
+			"III. Necromancer's Conclave",
+			"IV. Sanctum of the Archlich"
+		]
+	},
+	3: {
+		"name": "The Infernal Sanctum",
+		"light_color": Color(1.0, 0.32, 0.52),
+		"boss_name": "Baelgor, Lord of the Abyss",
+		"chambers": [
+			"I. Hellfire Approach",
+			"II. Vault of the Blood Guard",
+			"III. Citadel of Doom",
+			"IV. Abyssal Throne of Baelgor"
+		]
+	}
+}
+
+var chamber_names: Array = []
 var gate_nodes: Dictionary = {} # chamber_id -> StaticBody3D gate
 var door_meshes: Dictionary = {} # chamber_id -> Node3D (wall_doorway_door)
 var door_labels: Dictionary = {} # chamber_id -> Label3D
 var door_lights: Dictionary = {} # chamber_id -> OmniLight3D
 var entered_chambers: Dictionary = {0: true} # chamber_id -> bool
 var torch_lights: Array[OmniLight3D] = []
+var merchant_positions: Array[Vector3] = []
+var merchant_npcs: Array[Node3D] = []
+var descent_portal: Node3D = null
+var descent_portal_active_timer: float = 0.0
 var current_chamber: int = 0
 var time_accum: float = 0.0
 
 func _ready():
 	add_to_group("dungeon_room")
-	_build_dungeon_architecture()
-	_populate_props_and_chests()
-	_spawn_all_chambers_enemies()
+	_build_floor(1)
 	print("Dungeon room loaded")
 	var audio = get_tree().get_first_node_in_group("audio_manager")
 	if audio and audio.has_method("play_vo"):
 		audio.play_vo("VoEnter")
 	if "--capture-shots" in OS.get_cmdline_user_args():
 		_capture_showcase_screenshots()
+
+func _clear_floor_nodes():
+	for root in [arch_root, props_root, lights_root, gates_root, enemies_root, pickups_root]:
+		for c in root.get_children():
+			c.queue_free()
+	gate_nodes.clear()
+	door_meshes.clear()
+	door_labels.clear()
+	door_lights.clear()
+	torch_lights.clear()
+	merchant_positions.clear()
+	merchant_npcs.clear()
+	descent_portal = null
+	descent_portal_active_timer = 0.0
+	entered_chambers = {0: true}
+	current_chamber = 0
+
+func _build_floor(floor_num: int):
+	current_floor = floor_num
+	_clear_floor_nodes()
+
+	var theme: Dictionary = FLOOR_THEMES.get(current_floor, FLOOR_THEMES[1])
+	chamber_names = theme["chambers"]
+
+	_build_dungeon_architecture(theme["light_color"])
+	_populate_props_and_chests()
+	_spawn_merchant_stalls()
+	_spawn_all_chambers_enemies()
+
+	var ui = get_tree().get_first_node_in_group("ui")
+	if ui:
+		if ui.has_method("hide_boss_bar"):
+			ui.hide_boss_bar()
+		if ui.has_method("set_floor_info"):
+			ui.set_floor_info(current_floor, MAX_FLOORS)
+		if ui.has_method("set_chamber_title"):
+			ui.set_chamber_title(chamber_names[0])
+		if ui.has_method("update_enemies_remaining"):
+			ui.call_deferred("update_enemies_remaining")
+
+func _unhandled_input(event: InputEvent):
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F:
+		var player = get_tree().get_first_node_in_group("player") as Node3D
+		if not player:
+			return
+		# Check if near Descent Portal
+		if is_instance_valid(descent_portal) and player.global_position.distance_to(descent_portal.global_position) < 3.6:
+			_descend_to_next_floor()
+			get_viewport().set_input_as_handled()
+			return
+		# Check if near any Mystic Merchant Stall
+		for mpos in merchant_positions:
+			if player.global_position.distance_to(mpos) < 3.8:
+				var ui = get_tree().get_first_node_in_group("ui")
+				if ui and ui.has_method("open_merchant_shop"):
+					ui.open_merchant_shop()
+					get_viewport().set_input_as_handled()
+				return
 
 func _process(delta: float):
 	time_accum += delta
@@ -71,6 +169,15 @@ func _process(delta: float):
 		var l = torch_lights[i]
 		if is_instance_valid(l):
 			l.light_energy = 2.0 + sin(time_accum * 7.0 + float(i) * 1.7) * 0.28
+
+	# Animate Merchant NPCs & Descent Portal
+	for m_npc in merchant_npcs:
+		if is_instance_valid(m_npc):
+			m_npc.position.y = 0.08 + sin(time_accum * 2.6) * 0.06
+	if is_instance_valid(descent_portal):
+		descent_portal.rotation.y += delta * 1.8
+		if descent_portal_active_timer > 0.0:
+			descent_portal_active_timer = maxf(0.0, descent_portal_active_timer - delta)
 
 	# Update current chamber indicator based on player Z
 	var player = get_tree().get_first_node_in_group("player") as Node3D
@@ -97,13 +204,17 @@ func _process(delta: float):
 			if ui and ui.has_method("set_chamber_title"):
 				ui.set_chamber_title(chamber_names[current_chamber])
 
-func _build_dungeon_architecture():
+		# Auto-descend if player walks directly into the active Descent Portal ring
+		if is_instance_valid(descent_portal) and descent_portal_active_timer <= 0.0:
+			if player.global_position.distance_to(descent_portal.global_position) < 1.85:
+				_descend_to_next_floor()
+
+func _build_dungeon_architecture(torch_col: Color):
 	# 4 Chambers spanning Z from +8 down to -72 (20m per chamber), X from -10 to +10 (5 tiles wide = 20m)
-	# Each floor_tile_large is 4x4m, so X centers at [-8, -4, 0, 4, 8], Z centers from +6 down to -70 in steps of -4
 	for gz in range(20):
 		var z_pos = 6.0 - float(gz) * 4.0
 		for gx in [-8.0, -4.0, 0.0, 4.0, 8.0]:
-			var use_grate = ( abs(gx) == 4.0 and (gz % 3 == 1) )
+			var use_grate = (abs(gx) == 4.0 and ((gz + current_floor) % 3 == 1))
 			var tile = (glb_floor_grate if use_grate else glb_floor).instantiate()
 			arch_root.add_child(tile)
 			tile.position = Vector3(gx, 0.0, z_pos)
@@ -121,8 +232,8 @@ func _build_dungeon_architecture():
 
 		# Add wall torches every 2 segments
 		if gz % 2 == 1:
-			_add_wall_torch(Vector3(-9.3, 2.2, z_pos), 90.0)
-			_add_wall_torch(Vector3(9.3, 2.2, z_pos), -90.0)
+			_add_wall_torch(Vector3(-9.3, 2.2, z_pos), 90.0, torch_col)
+			_add_wall_torch(Vector3(9.3, 2.2, z_pos), -90.0, torch_col)
 
 	# Outer Left/Right/South/North physics boundary walls
 	_add_invisible_wall(Vector3(-10.0, 2.0, -32.0), Vector3(1.0, 4.0, 84.0))
@@ -220,50 +331,101 @@ func _add_invisible_wall(pos: Vector3, sz: Vector3):
 	arch_root.add_child(sb)
 	sb.position = pos
 
-func _add_wall_torch(pos: Vector3, rot_y: float):
+func _add_wall_torch(pos: Vector3, rot_y: float, torch_col: Color):
 	var t = glb_torch.instantiate()
 	arch_root.add_child(t)
 	t.position = pos
 	t.rotation_degrees.y = rot_y
 
 	var light = OmniLight3D.new()
-	light.light_color = Color(1.0, 0.65, 0.28)
+	light.light_color = torch_col
 	light.light_energy = 2.0
 	light.omni_range = 11.5
 	light.position = pos + Vector3(0.0, 0.45, 0.0)
 	lights_root.add_child(light)
 	torch_lights.append(light)
 
+func _spawn_merchant_stalls():
+	# Place a Mystic Merchant Stall in Chamber 1 (before Gate 1) and Chamber 2 (before Boss Gate 2)
+	_create_merchant_stall(Vector3(6.6, 0.0, -24.8), -90.0)
+	_create_merchant_stall(Vector3(-6.6, 0.0, -44.8), 90.0)
+
+func _create_merchant_stall(pos: Vector3, rot_y: float):
+	merchant_positions.append(pos)
+	var stall_root = Node3D.new()
+	props_root.add_child(stall_root)
+	stall_root.position = pos
+	stall_root.rotation_degrees.y = rot_y
+
+	# Table collider + mesh
+	_add_invisible_wall(pos + Vector3(0, 0.6, 0), Vector3(1.8, 1.2, 2.8))
+	var tbl = glb_table.instantiate()
+	stall_root.add_child(tbl)
+	tbl.scale = Vector3(0.85, 0.9, 0.85)
+
+	# Gold coin stacks on the merchant's table
+	for cx in [-0.55, 0.0, 0.55]:
+		var c_inst = glb_coins.instantiate()
+		stall_root.add_child(c_inst)
+		c_inst.position = Vector3(cx, 0.82, 0.15)
+
+	# Robed Mystic Merchant NPC standing behind the table
+	var npc = glb_merchant_npc.instantiate()
+	stall_root.add_child(npc)
+	npc.position = Vector3(0.0, 0.08, -1.05)
+	npc.scale = Vector3(1.12, 1.12, 1.12)
+	merchant_npcs.append(npc)
+
+	# Warm Golden-Violet Lantern Light
+	var m_light = OmniLight3D.new()
+	m_light.light_color = Color(1.0, 0.78, 0.25)
+	m_light.light_energy = 2.6
+	m_light.omni_range = 5.5
+	m_light.position = Vector3(0.0, 2.2, 0.2)
+	stall_root.add_child(m_light)
+
+	# Floating 3D Merchant Sign
+	var lbl = Label3D.new()
+	lbl.text = "MYSTIC MERCHANT\nPress [F] to Spend Gold"
+	lbl.font_size = 32
+	lbl.outline_size = 9
+	lbl.modulate = Color(1.0, 0.88, 0.32)
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.position = Vector3(0.0, 2.75, 0.0)
+	stall_root.add_child(lbl)
+
 func _populate_props_and_chests():
-	# Chamber 1 Pillars
-	for ppos in [Vector3(-4.5, 0, -14), Vector3(4.5, 0, -14), Vector3(-4.5, 0, -22), Vector3(4.5, 0, -22)]:
+	# Floor-varied Chamber 1 Pillars
+	var p_offset_x := 4.5 if current_floor % 2 == 1 else 3.6
+	for ppos in [Vector3(-p_offset_x, 0, -14), Vector3(p_offset_x, 0, -14), Vector3(-p_offset_x, 0, -22), Vector3(p_offset_x, 0, -22)]:
 		_add_static_prop(glb_pillar, ppos, 0.0, Vector3(1.1, 4.0, 1.1))
 
 	# Chamber 2 Banquet Tables & Candle Shelves
-	_add_static_prop(glb_table, Vector3(-5.0, 0, -38.0), 90.0, Vector3(2.0, 1.2, 4.0))
-	_add_static_prop(glb_table, Vector3(5.0, 0, -38.0), 90.0, Vector3(2.0, 1.2, 4.0))
+	_add_static_prop(glb_table, Vector3(-5.0, 0, -37.5), 90.0, Vector3(2.0, 1.2, 4.0))
+	_add_static_prop(glb_table, Vector3(5.0, 0, -37.5), 90.0, Vector3(2.0, 1.2, 4.0))
 	_add_static_prop(glb_shelf, Vector3(-8.8, 0, -33.0), 90.0, Vector3(1.2, 2.2, 1.8))
 	_add_static_prop(glb_shelf, Vector3(8.8, 0, -33.0), -90.0, Vector3(1.2, 2.2, 1.8))
 
 	# Breakable Barrels & Crates across Chambers
 	var barrel_coords := [
 		Vector3(-6.5, 0, 3.5), Vector3(6.5, 0, 2.5), Vector3(-7.0, 0, -4.5),
-		Vector3(-7.0, 0, -12.0), Vector3(7.0, 0, -18.0), Vector3(-6.5, 0, -24.5),
+		Vector3(-7.0, 0, -12.0), Vector3(7.0, 0, -18.0),
 		Vector3(-7.2, 0, -32.0), Vector3(7.2, 0, -43.0),
 		Vector3(-7.5, 0, -54.0), Vector3(7.5, 0, -54.0), Vector3(-7.5, 0, -64.0), Vector3(7.5, 0, -64.0)
 	]
 	for i in range(barrel_coords.size()):
-		_add_breakable_prop(barrel_coords[i], i % 3 == 0)
+		_add_breakable_prop(barrel_coords[i], (i + current_floor) % 3 == 0)
 
-	# 3 Interactive Golden Relic Chests
+	# 3 Interactive Golden Relic Chests (one in Chamber 0, Chamber 1, Chamber 2)
 	_add_relic_chest(Vector3(6.8, 0.0, -5.2), "Vampiric Blade", "vampiric")
 	_add_relic_chest(Vector3(-6.8, 0.0, -25.0), "Sunfire Brand", "sunfire")
 	_add_relic_chest(Vector3(6.8, 0.0, -45.0), "Dragonscale Plate", "dragonscale")
 
 	# Pickups placed in the dungeon
 	_spawn_pickup(Vector3(-5.5, 0, -2.0), "health", 35)
+	_spawn_pickup(Vector3(3.2, 0, -3.5), "gold", 30)
 	_spawn_pickup(Vector3(0.0, 0, -18.0), "soul_gem", 1)
-	_spawn_pickup(Vector3(5.5, 0, -23.0), "health", 35)
+	_spawn_pickup(Vector3(-5.2, 0, -21.0), "gold", 35)
 	_spawn_pickup(Vector3(-5.5, 0, -42.0), "health", 40)
 	_spawn_pickup(Vector3(0.0, 0, -44.0), "soul_gem", 1)
 	_spawn_pickup(Vector3(-6.0, 0, -60.0), "health", 45)
@@ -313,11 +475,11 @@ func take_damage(_amt: int):
 	var audio = get_tree().get_first_node_in_group("audio_manager")
 	if audio and audio.has_method("play_barrel_break"):
 		audio.play_barrel_break()
-	if randf() < 0.65:
+	if randf() < 0.78:
 		var pk_scn = load("res://scenes/health_pickup.tscn")
 		var pk = pk_scn.instantiate()
-		pk.pickup_type = "gold" if randf() < 0.7 else "health"
-		pk.amount = 20 if pk.pickup_type == "gold" else 25
+		pk.pickup_type = "gold" if randf() < 0.72 else "health"
+		pk.amount = 25 if pk.pickup_type == "gold" else 25
 		get_parent().add_child(pk)
 		pk.global_position = global_position
 	var tw = create_tween()
@@ -389,36 +551,48 @@ func _spawn_pickup(pos: Vector3, ptype: String, amt: int):
 	pk.position = pos
 
 func _spawn_all_chambers_enemies():
+	var hp_mult: float = 1.0 + float(current_floor - 1) * 0.38
+	var dmg_mult: float = 1.0 + float(current_floor - 1) * 0.25
+	var theme: Dictionary = FLOOR_THEMES.get(current_floor, FLOOR_THEMES[1])
+	var boss_title: String = theme["boss_name"]
+
 	# Chamber 0: Entry Hall (z: +4 to -6)
-	_spawn_enemy(scn_skeleton, Vector3(-4.0, 0, -1.0), 0)
-	_spawn_enemy(scn_skeleton, Vector3(4.0, 0, -1.5), 0)
-	_spawn_enemy(scn_goblin, Vector3(-2.5, 0, -4.5), 0)
-	_spawn_enemy(scn_goblin, Vector3(3.0, 0, -5.0), 0)
+	_spawn_enemy(scn_skeleton, Vector3(-4.0, 0, -1.0), 0, hp_mult, dmg_mult)
+	_spawn_enemy(scn_skeleton, Vector3(4.0, 0, -1.5), 0, hp_mult, dmg_mult)
+	_spawn_enemy(scn_goblin, Vector3(-2.5, 0, -4.5), 0, hp_mult, dmg_mult)
+	_spawn_enemy(scn_goblin, Vector3(3.0, 0, -5.0), 0, hp_mult, dmg_mult)
+	if current_floor >= 2:
+		_spawn_custom_enemy("mage", "Cultist Necromancer", Vector3(0.0, 0, -5.5), 0, int(50 * hp_mult), 3.7, int(12 * dmg_mult))
 
 	# Chamber 1: The Pillared Crypt (z: -12 to -25)
-	_spawn_enemy(scn_skeleton, Vector3(-5.5, 0, -13.0), 1)
-	_spawn_enemy(scn_skeleton, Vector3(5.5, 0, -13.0), 1)
-	_spawn_enemy(scn_goblin, Vector3(-2.5, 0, -17.0), 1)
-	_spawn_enemy(scn_goblin, Vector3(2.5, 0, -17.0), 1)
-	_spawn_enemy(scn_golem, Vector3(0.0, 0, -22.0), 1)
-	_spawn_custom_enemy("mage", "Cultist Necromancer", Vector3(0.0, 0, -24.5), 1, 50, 3.6, 12)
+	_spawn_enemy(scn_skeleton, Vector3(-5.5, 0, -13.0), 1, hp_mult, dmg_mult)
+	_spawn_enemy(scn_skeleton, Vector3(5.5, 0, -13.0), 1, hp_mult, dmg_mult)
+	_spawn_enemy(scn_goblin, Vector3(-2.5, 0, -17.0), 1, hp_mult, dmg_mult)
+	_spawn_enemy(scn_goblin, Vector3(2.5, 0, -17.0), 1, hp_mult, dmg_mult)
+	_spawn_enemy(scn_golem, Vector3(0.0, 0, -22.0), 1, hp_mult, dmg_mult)
+	_spawn_custom_enemy("mage", "Cultist Necromancer", Vector3(-3.5, 0, -24.0), 1, int(52 * hp_mult), 3.6, int(12 * dmg_mult))
 
 	# Chamber 2: Sanctum of the Obsidian Guard (z: -32 to -45)
-	_spawn_enemy(scn_goblin, Vector3(-3.0, 0, -33.0), 2)
-	_spawn_enemy(scn_goblin, Vector3(3.0, 0, -33.0), 2)
-	_spawn_enemy(scn_golem, Vector3(-3.5, 0, -39.0), 2)
-	_spawn_enemy(scn_golem, Vector3(3.5, 0, -39.0), 2)
-	_spawn_custom_enemy("mage", "Cultist Necromancer", Vector3(-4.0, 0, -44.0), 2, 55, 3.6, 13)
-	_spawn_custom_enemy("mage", "Cultist Necromancer", Vector3(4.0, 0, -44.0), 2, 55, 3.6, 13)
+	_spawn_enemy(scn_goblin, Vector3(-3.0, 0, -33.0), 2, hp_mult, dmg_mult)
+	_spawn_enemy(scn_goblin, Vector3(3.0, 0, -33.0), 2, hp_mult, dmg_mult)
+	_spawn_enemy(scn_golem, Vector3(-3.5, 0, -39.0), 2, hp_mult, dmg_mult)
+	_spawn_enemy(scn_golem, Vector3(3.5, 0, -39.0), 2, hp_mult, dmg_mult)
+	_spawn_custom_enemy("mage", "Cultist Necromancer", Vector3(-4.0, 0, -44.0), 2, int(58 * hp_mult), 3.7, int(13 * dmg_mult))
+	_spawn_custom_enemy("mage", "Cultist Necromancer", Vector3(4.0, 0, -44.0), 2, int(58 * hp_mult), 3.7, int(13 * dmg_mult))
 
-	# Chamber 3: Throne of the Abyssal Warden (z: -52 to -68)
-	_spawn_enemy(scn_skeleton, Vector3(-5.0, 0, -56.0), 3)
-	_spawn_enemy(scn_skeleton, Vector3(5.0, 0, -56.0), 3)
-	_spawn_custom_enemy("boss", "The Abyssal Warden", Vector3(0.0, 0, -63.0), 3, 300, 4.4, 22)
+	# Chamber 3: Boss Throne Room (z: -52 to -68)
+	_spawn_enemy(scn_skeleton, Vector3(-5.0, 0, -56.0), 3, hp_mult, dmg_mult)
+	_spawn_enemy(scn_skeleton, Vector3(5.0, 0, -56.0), 3, hp_mult, dmg_mult)
+	if current_floor >= 3:
+		_spawn_enemy(scn_golem, Vector3(0.0, 0, -58.0), 3, hp_mult, dmg_mult)
+	_spawn_custom_enemy("boss", boss_title, Vector3(0.0, 0, -63.0), 3, int(300 * hp_mult), 4.4 + float(current_floor - 1) * 0.25, int(22 * dmg_mult))
 
-func _spawn_enemy(scene: PackedScene, pos: Vector3, cid: int) -> Node3D:
+func _spawn_enemy(scene: PackedScene, pos: Vector3, cid: int, hp_mult: float = 1.0, dmg_mult: float = 1.0) -> Node3D:
 	var e = scene.instantiate()
 	e.chamber_id = cid
+	e.max_health = int(round(float(e.max_health) * hp_mult))
+	e.current_health = e.max_health
+	e.attack_damage = int(round(float(e.attack_damage) * dmg_mult))
 	enemies_root.add_child(e)
 	e.position = pos
 	return e
@@ -444,7 +618,6 @@ func is_chamber_accessible(cid: int) -> bool:
 	return (not gate_nodes.has(cid - 1)) and entered_chambers.has(cid)
 
 func on_enemy_defeated(cid: int, was_boss: bool):
-	# Check if all enemies in chamber `cid` are defeated
 	var remaining_in_chamber := 0
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.get("chamber_id") == cid:
@@ -457,9 +630,76 @@ func on_enemy_defeated(cid: int, was_boss: bool):
 		_open_gate(cid)
 
 	if was_boss:
-		var ui = get_tree().get_first_node_in_group("ui")
-		if ui and ui.has_method("show_victory"):
-			ui.show_victory()
+		if current_floor < MAX_FLOORS:
+			_spawn_descent_portal()
+		else:
+			var ui = get_tree().get_first_node_in_group("ui")
+			if ui and ui.has_method("show_victory"):
+				ui.show_victory()
+
+func _spawn_descent_portal():
+	if is_instance_valid(descent_portal):
+		return
+	descent_portal = Node3D.new()
+	props_root.add_child(descent_portal)
+	descent_portal.position = Vector3(0.0, 0.15, -66.8)
+	descent_portal_active_timer = 1.4
+
+	# Glowing Outer Cyan-Gold Portal Ring
+	var ring_mesh = MeshInstance3D.new()
+	var torus = CylinderMesh.new()
+	torus.top_radius = 1.9
+	torus.bottom_radius = 1.9
+	torus.height = 0.12
+	torus.radial_segments = 32
+	ring_mesh.mesh = torus
+	var mat = StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.25, 0.92, 1.0, 0.65)
+	ring_mesh.material_override = mat
+	descent_portal.add_child(ring_mesh)
+
+	var p_light = OmniLight3D.new()
+	p_light.light_color = Color(0.25, 0.92, 1.0)
+	p_light.light_energy = 3.5
+	p_light.omni_range = 7.0
+	p_light.position = Vector3(0.0, 1.5, 0.0)
+	descent_portal.add_child(p_light)
+
+	var lbl = Label3D.new()
+	lbl.text = "STAIRS TO FLOOR %d\nWalk Into Portal or Press [F] to Descend" % (current_floor + 1)
+	lbl.font_size = 36
+	lbl.outline_size = 10
+	lbl.modulate = Color(0.35, 0.96, 1.0)
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.position = Vector3(0.0, 2.6, 0.0)
+	descent_portal.add_child(lbl)
+
+	var ui = get_tree().get_first_node_in_group("ui")
+	if ui and ui.has_method("show_banner"):
+		ui.show_banner("FLOOR %d GUARDIAN SLAIN! — DESCEND AT THE NORTH STAIRS!" % current_floor)
+
+func _descend_to_next_floor():
+	if current_floor >= MAX_FLOORS:
+		return
+	var next_f := current_floor + 1
+	var audio = get_tree().get_first_node_in_group("audio_manager")
+	if audio and audio.has_method("play_door_open"):
+		audio.play_door_open()
+
+	var player = get_tree().get_first_node_in_group("player") as CharacterBody3D
+	if player:
+		player.global_position = Vector3(0.0, 0.0, 4.0)
+		player.velocity = Vector3.ZERO
+		if player.has_method("heal"):
+			player.heal(45)
+
+	_build_floor(next_f)
+	var theme: Dictionary = FLOOR_THEMES.get(next_f, FLOOR_THEMES[1])
+	var ui = get_tree().get_first_node_in_group("ui")
+	if ui and ui.has_method("show_banner"):
+		ui.show_banner("DESCENDED TO FLOOR %d: %s" % [next_f, theme["name"].to_upper()])
 
 func _open_gate(cid: int):
 	var gate: StaticBody3D = gate_nodes[cid]

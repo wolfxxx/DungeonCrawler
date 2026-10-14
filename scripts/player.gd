@@ -469,8 +469,8 @@ func _is_safe_for_level_up_draft() -> bool:
 func gain_xp(amount: int):
 	if is_dead:
 		return
-	# Don't pop a level-up modal if all enemies are already dead (boss just died -> Victory!)
-	if get_tree().get_nodes_in_group("enemies").is_empty():
+	var ui = get_tree().get_first_node_in_group("ui")
+	if ui and ui.get("victory_shown"):
 		return
 	current_xp += amount
 	spawn_floating_text("+" + str(amount) + " XP", Color(0.78, 0.5, 1.0))
@@ -592,6 +592,36 @@ func add_gold(amount: int):
 		audio.play_gold()
 	spawn_floating_text("+" + str(amount) + " GOLD", Color(1.0, 0.85, 0.2))
 	_sync_ui()
+
+func buy_merchant_item(item_id: String, cost: int) -> bool:
+	if gold < cost:
+		return false
+	gold -= cost
+	var audio = get_tree().get_first_node_in_group("audio_manager")
+	if audio and audio.has_method("play_chest"):
+		audio.play_chest()
+
+	match item_id:
+		"elixir":
+			max_health += 15
+			current_health = min(max_health, current_health + 65)
+			spawn_floating_text("CRIMSON DRAUGHT (+65 HP & +15 MAX HP)", Color(0.3, 1.0, 0.5))
+		"whetstone":
+			attack_damage += 8
+			crit_chance += 0.06
+			relics.append("Runeforged Edge")
+			spawn_floating_text("RUNEFORGED EDGE (+8 ATK & +6% CRIT)", Color(1.0, 0.55, 0.2))
+		"conduit":
+			chain_lightning_ranks += 1
+			sword_wave_ranks += 1
+			relics.append("Arcane Conduit")
+			spawn_floating_text("ARCANE CONDUIT (+LIGHTNING & +WAVE)", Color(0.35, 0.9, 1.0))
+		"tome":
+			pending_level_ups += 1
+			spawn_floating_text("TOME OF ASCENSION (+1 PERK DRAFT)", Color(0.85, 0.55, 1.0))
+
+	_sync_ui()
+	return true
 
 func grant_relic(relic_name: String, bonus_type: String):
 	if not relics.has(relic_name):

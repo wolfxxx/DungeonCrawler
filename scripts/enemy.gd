@@ -823,22 +823,37 @@ func die():
 				xp_reward = 200
 		player.gain_xp(xp_reward)
 
-	# Drop loot
+	# Guaranteed Gold Coin drop + bonus Health Elixir / Soul Gem drop
 	var pickup_scene = preload("res://scenes/health_pickup.tscn")
+	var gold_pickup = pickup_scene.instantiate()
+	gold_pickup.pickup_type = "gold"
+	match enemy_type:
+		"goblin":
+			gold_pickup.amount = randi_range(16, 26)
+		"skeleton":
+			gold_pickup.amount = randi_range(22, 34)
+		"mage":
+			gold_pickup.amount = randi_range(32, 48)
+		"golem":
+			gold_pickup.amount = randi_range(45, 65)
+		"boss":
+			gold_pickup.amount = 140
+		_:
+			gold_pickup.amount = randi_range(18, 30)
+	get_parent().add_child(gold_pickup)
+	gold_pickup.global_position = global_position + Vector3(randf_range(-0.4, 0.4), 0.0, randf_range(-0.4, 0.4))
+
 	var roll = randf()
-	if enemy_type == "boss" or roll < 0.72:
-		var pickup = pickup_scene.instantiate()
-		if enemy_type == "boss" or roll < 0.25:
-			pickup.pickup_type = "soul_gem"
-			pickup.amount = 1
-		elif roll < 0.52:
-			pickup.pickup_type = "health"
-			pickup.amount = 35
+	if enemy_type == "boss" or roll < 0.55:
+		var bonus = pickup_scene.instantiate()
+		if enemy_type == "boss" or roll < 0.20:
+			bonus.pickup_type = "soul_gem"
+			bonus.amount = 1
 		else:
-			pickup.pickup_type = "gold"
-			pickup.amount = randi_range(15, 35)
-		get_parent().add_child(pickup)
-		pickup.global_position = global_position
+			bonus.pickup_type = "health"
+			bonus.amount = 35
+		get_parent().add_child(bonus)
+		bonus.global_position = global_position + Vector3(randf_range(0.5, 0.9), 0.0, randf_range(-0.5, 0.5))
 
 	# Notify room & UI
 	var room = get_tree().get_first_node_in_group("dungeon_room")
