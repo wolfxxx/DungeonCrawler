@@ -28,17 +28,19 @@ func _ready():
 	await get_tree().process_frame
 	update_enemies_remaining()
 
-func _unhandled_input(event: InputEvent):
+func _input(event: InputEvent):
 	if not level_up_modal or not level_up_modal.visible:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.physical_keycode == KEY_1 and active_perk_choices.size() >= 1:
+		var kc = event.keycode
+		var pkc = event.physical_keycode
+		if (kc == KEY_1 or pkc == KEY_1 or kc == KEY_KP_1 or pkc == KEY_KP_1) and active_perk_choices.size() >= 1:
 			_on_perk_card_chosen(0)
 			get_viewport().set_input_as_handled()
-		elif event.physical_keycode == KEY_2 and active_perk_choices.size() >= 2:
+		elif (kc == KEY_2 or pkc == KEY_2 or kc == KEY_KP_2 or pkc == KEY_KP_2) and active_perk_choices.size() >= 2:
 			_on_perk_card_chosen(1)
 			get_viewport().set_input_as_handled()
-		elif event.physical_keycode == KEY_3 and active_perk_choices.size() >= 3:
+		elif (kc == KEY_3 or pkc == KEY_3 or kc == KEY_KP_3 or pkc == KEY_KP_3) and active_perk_choices.size() >= 3:
 			_on_perk_card_chosen(2)
 			get_viewport().set_input_as_handled()
 
@@ -104,6 +106,7 @@ func update_enemies_remaining():
 func _build_level_up_modal():
 	level_up_modal = Control.new()
 	level_up_modal.name = "LevelUpModal"
+	level_up_modal.process_mode = Node.PROCESS_MODE_ALWAYS
 	level_up_modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	level_up_modal.visible = false
 	add_child(level_up_modal)
@@ -131,7 +134,7 @@ func _build_level_up_modal():
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_font_size_override("font_size", 16)
 	sub.add_theme_color_override("font_color", Color(0.78, 0.86, 1.0))
-	sub.text = "Click a Card or Press [1], [2], or [3]"
+	sub.text = "Click anywhere on a Card or Press [1], [2], or [3]"
 	level_up_modal.add_child(sub)
 
 	var hbox = HBoxContainer.new()
@@ -146,6 +149,12 @@ func _build_level_up_modal():
 	level_up_modal.add_child(hbox)
 
 func show_level_up_choices(level: int, choices: Array):
+	if victory_shown:
+		return
+	var player = get_tree().get_first_node_in_group("player")
+	if player and player.get("is_dead"):
+		return
+
 	active_perk_choices = choices
 	var header: Label = level_up_modal.get_node("HeaderLabel")
 	header.text = "LEVEL %d REACHED! — CHOOSE AN ASCENSION PERK" % level
@@ -162,12 +171,14 @@ func show_level_up_choices(level: int, choices: Array):
 	level_up_modal.visible = true
 	level_up_modal.modulate.a = 0.0
 	var tw = create_tween()
+	tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tw.tween_property(level_up_modal, "modulate:a", 1.0, 0.22)
 	get_tree().paused = true
 
 func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	var panel = PanelContainer.new()
 	panel.custom_minimum_size = Vector2(290, 320)
+	panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 	var style = StyleBoxFlat.new()
 	var accent: Color = perk.get("color", Color(0.4, 0.8, 1.0))
@@ -178,11 +189,19 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	style.set_content_margin_all(18)
 	panel.add_theme_stylebox_override("panel", style)
 
+	# Allow clicking anywhere on the card panel itself in addition to the button
+	panel.gui_input.connect(func(event: InputEvent):
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			_on_perk_card_chosen(index)
+	)
+
 	var vbox = VBoxContainer.new()
+	vbox.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_theme_constant_override("separation", 12)
 	panel.add_child(vbox)
 
 	var key_badge = Label.new()
+	key_badge.mouse_filter = Control.MOUSE_FILTER_PASS
 	key_badge.text = "[ KEY %d ]  •  %s" % [index + 1, perk.get("tag", "ASCENSION")]
 	key_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	key_badge.add_theme_font_size_override("font_size", 13)
@@ -190,6 +209,7 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	vbox.add_child(key_badge)
 
 	var title_lbl = Label.new()
+	title_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
 	title_lbl.text = perk.get("title", "Perk")
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -198,9 +218,11 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	vbox.add_child(title_lbl)
 
 	var sep = HSeparator.new()
+	sep.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_child(sep)
 
 	var desc_lbl = Label.new()
+	desc_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
 	desc_lbl.text = perk.get("desc", "")
 	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -213,6 +235,7 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	var btn = Button.new()
 	btn.text = "SELECT [%d]" % (index + 1)
 	btn.custom_minimum_size = Vector2(0, 44)
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn.pressed.connect(func(): _on_perk_card_chosen(index))
 	vbox.add_child(btn)
 
@@ -222,6 +245,7 @@ func _on_perk_card_chosen(index: int):
 	if index < 0 or index >= active_perk_choices.size():
 		return
 	var chosen: Dictionary = active_perk_choices[index]
+	active_perk_choices.clear()
 	level_up_modal.visible = false
 	get_tree().paused = false
 
@@ -233,6 +257,11 @@ func show_victory():
 	if victory_shown:
 		return
 	victory_shown = true
+	if level_up_modal and level_up_modal.visible:
+		level_up_modal.visible = false
+		active_perk_choices.clear()
+		get_tree().paused = false
+
 	score_label.text = "Victory! The Catacombs are cleansed!"
 	score_label.modulate = Color(0.35, 1.0, 0.45)
 

@@ -458,6 +458,9 @@ func _spawn_lightning_beam(p1: Vector3, p2: Vector3):
 func gain_xp(amount: int):
 	if is_dead:
 		return
+	# Don't pop a level-up modal if all enemies are already dead (boss just died -> Victory!)
+	if get_tree().get_nodes_in_group("enemies").is_empty():
+		return
 	current_xp += amount
 	spawn_floating_text("+" + str(amount) + " XP", Color(0.78, 0.5, 1.0))
 
@@ -468,7 +471,7 @@ func gain_xp(amount: int):
 		pending_level_ups += 1
 
 	_sync_ui()
-	if pending_level_ups > 0:
+	if pending_level_ups > 0 and not get_tree().paused:
 		_trigger_next_level_up_draft()
 
 func _trigger_next_level_up_draft():
