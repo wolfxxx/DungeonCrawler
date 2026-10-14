@@ -1,5 +1,6 @@
 extends CanvasLayer
 ## 3D Dungeon Crawler HUD & 3-Card RPG Level-Up Perk Draft Controller
+## Includes a 0.75s Anti-Misclick Safety Lock so combat clicks never accidentally pick a perk
 
 @onready var health_bar: ProgressBar = $HealthBar
 @onready var health_label: Label = $HealthBar/HealthLabel
@@ -18,6 +19,9 @@ extends CanvasLayer
 var victory_shown: bool = false
 var level_up_modal: Control = null
 var active_perk_choices: Array = []
+var card_buttons: Array[Button] = []
+var modal_lock_timer: float = 0.0
+const MODAL_SAFETY_LOCK_DURATION: float = 0.75
 
 func _ready():
 	add_to_group("ui")
@@ -28,9 +32,39 @@ func _ready():
 	await get_tree().process_frame
 	update_enemies_remaining()
 
+func _process(delta: float):
+	if level_up_modal and level_up_modal.visible and modal_lock_timer > 0.0:
+		modal_lock_timer = maxf(0.0, modal_lock_timer - delta)
+		var sub: Label = level_up_modal.get_node("SubHeaderLabel")
+		if modal_lock_timer > 0.0:
+			sub.text = "Safety Lock (%.1fs)... Release mouse, then Click SELECT or Press [1], [2], [3]" % modal_lock_timer
+			for i in range(card_buttons.size()):
+				if is_instance_valid(card_buttons[i]):
+					card_buttons[i].disabled = true
+					card_buttons[i].text = "WAIT %.1fs..." % modal_lock_timer
+		else:
+			sub.text = "Click a Card's [SELECT] Button or Press [1], [2], or [3]"
+			for i in range(card_buttons.size()):
+				if is_instance_valid(card_buttons[i]):
+					card_buttons[i].disabled = false
+					card_buttons[i].text = "SELECT [%d]" % (i + 1)
+
 func _input(event: InputEvent):
 	if not level_up_modal or not level_up_modal.visible:
+		# Allow pressing TAB at any time to open a queued level-up draft even mid-combat
+		if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_TAB:
+			var player = get_tree().get_first_node_in_group("player")
+			if player and player.get("pending_level_ups") > 0 and player.has_method("_trigger_next_level_up_draft"):
+				player._trigger_next_level_up_draft()
+				get_viewport().set_input_as_handled()
 		return
+
+	# Absorb all clicks/keys while the 0.75s anti-misclick safety lock is active
+	if modal_lock_timer > 0.0:
+		if event is InputEventMouseButton:
+			get_viewport().set_input_as_handled()
+		return
+
 	if event is InputEventKey and event.pressed and not event.echo:
 		var kc = event.keycode
 		var pkc = event.physical_keycode
@@ -43,6 +77,9 @@ func _input(event: InputEvent):
 		elif (kc == KEY_3 or pkc == KEY_3 or kc == KEY_KP_3 or pkc == KEY_KP_3) and active_perk_choices.size() >= 3:
 			_on_perk_card_chosen(2)
 			get_viewport().set_input_as_handled()
+
+func is_level_up_open() -> bool:
+	return level_up_modal != null and level_up_modal.visible
 
 func update_health(current: int, maximum: int):
 	health_bar.max_value = maximum
@@ -128,13 +165,14 @@ func _build_level_up_modal():
 	level_up_modal.add_child(header)
 
 	var sub = Label.new()
+	sub.name = "SubHeaderLabel"
 	sub.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	sub.offset_top = 132.0
 	sub.offset_bottom = 165.0
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_font_size_override("font_size", 16)
 	sub.add_theme_color_override("font_color", Color(0.78, 0.86, 1.0))
-	sub.text = "Click anywhere on a Card or Press [1], [2], or [3]"
+	sub.text = "Click a Card's [SELECT] Button or Press [1], [2], or [3]"
 	level_up_modal.add_child(sub)
 
 	var hbox = HBoxContainer.new()
@@ -156,6 +194,9 @@ func show_level_up_choices(level: int, choices: Array):
 		return
 
 	active_perk_choices = choices
+	card_buttons.clear()
+	modal_lock_timer = MODAL_SAFETY_LOCK_DURATION
+
 	var header: Label = level_up_modal.get_node("HeaderLabel")
 	header.text = "LEVEL %d REACHED! — CHOOSE AN ASCENSION PERK" % level
 
@@ -178,7 +219,6 @@ func show_level_up_choices(level: int, choices: Array):
 func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	var panel = PanelContainer.new()
 	panel.custom_minimum_size = Vector2(290, 320)
-	panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 	var style = StyleBoxFlat.new()
 	var accent: Color = perk.get("color", Color(0.4, 0.8, 1.0))
@@ -189,19 +229,11 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	style.set_content_margin_all(18)
 	panel.add_theme_stylebox_override("panel", style)
 
-	# Allow clicking anywhere on the card panel itself in addition to the button
-	panel.gui_input.connect(func(event: InputEvent):
-		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			_on_perk_card_chosen(index)
-	)
-
 	var vbox = VBoxContainer.new()
-	vbox.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_theme_constant_override("separation", 12)
 	panel.add_child(vbox)
 
 	var key_badge = Label.new()
-	key_badge.mouse_filter = Control.MOUSE_FILTER_PASS
 	key_badge.text = "[ KEY %d ]  •  %s" % [index + 1, perk.get("tag", "ASCENSION")]
 	key_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	key_badge.add_theme_font_size_override("font_size", 13)
@@ -209,7 +241,6 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	vbox.add_child(key_badge)
 
 	var title_lbl = Label.new()
-	title_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
 	title_lbl.text = perk.get("title", "Perk")
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -218,11 +249,9 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	vbox.add_child(title_lbl)
 
 	var sep = HSeparator.new()
-	sep.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_child(sep)
 
 	var desc_lbl = Label.new()
-	desc_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
 	desc_lbl.text = perk.get("desc", "")
 	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -233,19 +262,27 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	vbox.add_child(desc_lbl)
 
 	var btn = Button.new()
-	btn.text = "SELECT [%d]" % (index + 1)
+	btn.text = "WAIT 0.8s..."
+	btn.disabled = true
 	btn.custom_minimum_size = Vector2(0, 44)
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	btn.pressed.connect(func(): _on_perk_card_chosen(index))
+	btn.pressed.connect(func():
+		if modal_lock_timer <= 0.0:
+			_on_perk_card_chosen(index)
+	)
 	vbox.add_child(btn)
+	card_buttons.append(btn)
 
 	return panel
 
 func _on_perk_card_chosen(index: int):
+	if modal_lock_timer > 0.0:
+		return
 	if index < 0 or index >= active_perk_choices.size():
 		return
 	var chosen: Dictionary = active_perk_choices[index]
 	active_perk_choices.clear()
+	card_buttons.clear()
 	level_up_modal.visible = false
 	get_tree().paused = false
 
@@ -260,6 +297,7 @@ func show_victory():
 	if level_up_modal and level_up_modal.visible:
 		level_up_modal.visible = false
 		active_perk_choices.clear()
+		card_buttons.clear()
 		get_tree().paused = false
 
 	score_label.text = "Victory! The Catacombs are cleansed!"

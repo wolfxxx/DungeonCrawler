@@ -168,6 +168,9 @@ func _physics_process(delta: float):
 	_animate_character(delta)
 	_update_camera_shake(delta)
 
+	if pending_level_ups > 0 and not get_tree().paused and _is_safe_for_level_up_draft():
+		_trigger_next_level_up_draft()
+
 func handle_movement(delta: float):
 	if is_dashing:
 		return
@@ -455,6 +458,14 @@ func _spawn_lightning_beam(p1: Vector3, p2: Vector3):
 # RPG XP & 3-CARD PERK LEVEL-UP SYSTEM
 # ============================================================================
 
+func _is_safe_for_level_up_draft() -> bool:
+	if is_attacking or is_dashing:
+		return false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and e.global_position.distance_to(global_position) < 7.5:
+			return false
+	return true
+
 func gain_xp(amount: int):
 	if is_dead:
 		return
@@ -464,14 +475,18 @@ func gain_xp(amount: int):
 	current_xp += amount
 	spawn_floating_text("+" + str(amount) + " XP", Color(0.78, 0.5, 1.0))
 
+	var leveled_up_now := false
 	while current_xp >= xp_to_next:
 		current_xp -= xp_to_next
 		level += 1
 		xp_to_next = int(round(xp_to_next * 1.38))
 		pending_level_ups += 1
+		leveled_up_now = true
 
 	_sync_ui()
-	if pending_level_ups > 0 and not get_tree().paused:
+	if leveled_up_now and not _is_safe_for_level_up_draft():
+		spawn_floating_text("LEVEL UP! (Opens after fight or [TAB])", Color(1.0, 0.88, 0.25))
+	elif pending_level_ups > 0 and not get_tree().paused and _is_safe_for_level_up_draft():
 		_trigger_next_level_up_draft()
 
 func _trigger_next_level_up_draft():
