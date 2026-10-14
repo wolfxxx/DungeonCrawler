@@ -21,6 +21,9 @@ var current_floor_num: int = 1
 var max_floors_num: int = 3
 
 var level_up_modal: Control = null
+var level_up_header: Label = null
+var level_up_sub: Label = null
+var level_up_cards_box: HBoxContainer = null
 var active_perk_choices: Array = []
 var card_buttons: Array[Button] = []
 var modal_lock_timer: float = 0.0
@@ -28,6 +31,8 @@ const MODAL_SAFETY_LOCK_DURATION: float = 0.75
 
 # Mystic Merchant Shop Modal state
 var merchant_modal: Control = null
+var merchant_gold_lbl: Label = null
+var merchant_cards_box: HBoxContainer = null
 var merchant_lock_timer: float = 0.0
 var merchant_buttons: Array[Button] = []
 var merchant_purchase_counts: Dictionary = {
@@ -88,15 +93,16 @@ func _ready():
 func _process(delta: float):
 	if level_up_modal and level_up_modal.visible and modal_lock_timer > 0.0:
 		modal_lock_timer = maxf(0.0, modal_lock_timer - delta)
-		var sub: Label = level_up_modal.get_node("SubHeaderLabel")
 		if modal_lock_timer > 0.0:
-			sub.text = "Safety Lock (%.1fs)... Release mouse, then Click SELECT or Press [1], [2], [3]" % modal_lock_timer
+			if is_instance_valid(level_up_sub):
+				level_up_sub.text = "Safety Lock (%.1fs)... Release mouse, then Click SELECT or Press [1], [2], [3]" % modal_lock_timer
 			for i in range(card_buttons.size()):
 				if is_instance_valid(card_buttons[i]):
 					card_buttons[i].disabled = true
 					card_buttons[i].text = "WAIT %.1fs..." % modal_lock_timer
 		else:
-			sub.text = "Click a Card's [SELECT] Button or Press [1], [2], or [3]"
+			if is_instance_valid(level_up_sub):
+				level_up_sub.text = "Click a Card's [SELECT] Button or Press [1], [2], or [3]"
 			for i in range(card_buttons.size()):
 				if is_instance_valid(card_buttons[i]):
 					card_buttons[i].disabled = false
@@ -236,59 +242,55 @@ func _build_merchant_modal():
 	merchant_modal = Control.new()
 	merchant_modal.name = "MerchantModal"
 	merchant_modal.process_mode = Node.PROCESS_MODE_ALWAYS
-	merchant_modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	merchant_modal.visible = false
 	add_child(merchant_modal)
+	merchant_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var dimmer = ColorRect.new()
-	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dimmer.color = Color(0.03, 0.02, 0.06, 0.84)
+	dimmer.color = Color(0.03, 0.02, 0.06, 0.86)
 	merchant_modal.add_child(dimmer)
+	dimmer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var layout_vbox = VBoxContainer.new()
+	layout_vbox.name = "LayoutVBox"
+	layout_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	layout_vbox.add_theme_constant_override("separation", 14)
+	merchant_modal.add_child(layout_vbox)
+	layout_vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var header = Label.new()
 	header.name = "HeaderLabel"
-	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header.offset_top = 48.0
-	header.offset_bottom = 92.0
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_font_size_override("font_size", 32)
+	header.add_theme_font_size_override("font_size", 30)
 	header.add_theme_color_override("font_color", Color(1.0, 0.85, 0.28))
 	header.text = "MYSTIC DUNGEON MERCHANT — TRADE GOLD FOR RELICS"
-	merchant_modal.add_child(header)
+	layout_vbox.add_child(header)
 
 	var gold_lbl = Label.new()
 	gold_lbl.name = "GoldBalanceLabel"
-	gold_lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	gold_lbl.offset_top = 96.0
-	gold_lbl.offset_bottom = 132.0
 	gold_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	gold_lbl.add_theme_font_size_override("font_size", 22)
+	gold_lbl.add_theme_font_size_override("font_size", 18)
 	gold_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45))
 	gold_lbl.text = "YOUR GOLD: 0"
-	merchant_modal.add_child(gold_lbl)
+	layout_vbox.add_child(gold_lbl)
+	merchant_gold_lbl = gold_lbl
 
 	var hbox = HBoxContainer.new()
 	hbox.name = "ShopCardsContainer"
-	hbox.set_anchors_preset(Control.PRESET_CENTER)
-	hbox.offset_left = -560.0
-	hbox.offset_top = -155.0
-	hbox.offset_right = 560.0
-	hbox.offset_bottom = 175.0
 	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	hbox.add_theme_constant_override("separation", 18)
-	merchant_modal.add_child(hbox)
+	hbox.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	hbox.add_theme_constant_override("separation", 16)
+	layout_vbox.add_child(hbox)
+	merchant_cards_box = hbox
 
 	var close_btn = Button.new()
 	close_btn.name = "CloseShopButton"
-	close_btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	close_btn.offset_left = -180.0
-	close_btn.offset_top = -95.0
-	close_btn.offset_right = 180.0
-	close_btn.offset_bottom = -45.0
+	close_btn.custom_minimum_size = Vector2(320, 44)
+	close_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	close_btn.text = "LEAVE MERCHANT [F / ESC]"
 	close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	close_btn.pressed.connect(close_merchant_shop)
-	merchant_modal.add_child(close_btn)
+	layout_vbox.add_child(close_btn)
 
 func open_merchant_shop():
 	if victory_shown:
@@ -327,11 +329,13 @@ func _refresh_merchant_cards():
 	var player = get_tree().get_first_node_in_group("player")
 	var current_gold: int = player.gold if player else 0
 
-	var gold_lbl: Label = merchant_modal.get_node("GoldBalanceLabel")
-	gold_lbl.text = "YOUR GOLD: %d   •   Click [BUY] or Press [1]–[4]   •   Press [F] or [ESC] to Close" % current_gold
+	if is_instance_valid(merchant_gold_lbl):
+		merchant_gold_lbl.text = "YOUR GOLD: %d   •   Click [BUY] or Press [1]–[4]   •   Press [F] or [ESC] to Close" % current_gold
 
-	var hbox: HBoxContainer = merchant_modal.get_node("ShopCardsContainer")
-	for c in hbox.get_children():
+	if not is_instance_valid(merchant_cards_box):
+		return
+	for c in merchant_cards_box.get_children():
+		merchant_cards_box.remove_child(c)
 		c.queue_free()
 	merchant_buttons.clear()
 
@@ -340,11 +344,12 @@ func _refresh_merchant_cards():
 		var cost: int = _get_merchant_item_cost(i)
 		var can_afford: bool = current_gold >= cost
 		var card = _create_merchant_card(i, item, cost, can_afford)
-		hbox.add_child(card)
+		merchant_cards_box.add_child(card)
 
 func _create_merchant_card(index: int, item: Dictionary, cost: int, can_afford: bool) -> PanelContainer:
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(255, 315)
+	panel.custom_minimum_size = Vector2(250, 290)
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 	var style = StyleBoxFlat.new()
 	var accent: Color = item.get("color", Color(1.0, 0.85, 0.3))
@@ -356,7 +361,7 @@ func _create_merchant_card(index: int, item: Dictionary, cost: int, can_afford: 
 	panel.add_theme_stylebox_override("panel", style)
 
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 10)
+	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
 	var badge = Label.new()
@@ -368,16 +373,17 @@ func _create_merchant_card(index: int, item: Dictionary, cost: int, can_afford: 
 
 	var title_lbl = Label.new()
 	title_lbl.text = item.get("title", "Upgrade")
+	title_lbl.custom_minimum_size = Vector2(214, 28)
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title_lbl.add_theme_font_size_override("font_size", 20)
+	title_lbl.add_theme_font_size_override("font_size", 19)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.85))
 	vbox.add_child(title_lbl)
 
 	var cost_lbl = Label.new()
 	cost_lbl.text = "COST: %d GOLD" % cost
 	cost_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cost_lbl.add_theme_font_size_override("font_size", 16)
+	cost_lbl.add_theme_font_size_override("font_size", 15)
 	cost_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25) if can_afford else Color(1.0, 0.4, 0.4))
 	vbox.add_child(cost_lbl)
 
@@ -386,16 +392,16 @@ func _create_merchant_card(index: int, item: Dictionary, cost: int, can_afford: 
 
 	var desc_lbl = Label.new()
 	desc_lbl.text = item.get("desc", "")
+	desc_lbl.custom_minimum_size = Vector2(214, 96)
 	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	desc_lbl.add_theme_font_size_override("font_size", 14)
 	desc_lbl.add_theme_color_override("font_color", Color(0.84, 0.90, 0.98))
 	vbox.add_child(desc_lbl)
 
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(0, 42)
+	btn.custom_minimum_size = Vector2(214, 40)
 	if merchant_lock_timer > 0.0:
 		btn.text = "WAIT..."
 		btn.disabled = true
@@ -436,47 +442,47 @@ func _build_level_up_modal():
 	level_up_modal = Control.new()
 	level_up_modal.name = "LevelUpModal"
 	level_up_modal.process_mode = Node.PROCESS_MODE_ALWAYS
-	level_up_modal.set_anchors_preset(Control.PRESET_FULL_RECT)
 	level_up_modal.visible = false
 	add_child(level_up_modal)
+	level_up_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var dimmer = ColorRect.new()
-	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dimmer.color = Color(0.03, 0.03, 0.07, 0.82)
+	dimmer.color = Color(0.03, 0.03, 0.07, 0.84)
 	level_up_modal.add_child(dimmer)
+	dimmer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var layout_vbox = VBoxContainer.new()
+	layout_vbox.name = "LayoutVBox"
+	layout_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	layout_vbox.add_theme_constant_override("separation", 16)
+	level_up_modal.add_child(layout_vbox)
+	layout_vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var header = Label.new()
 	header.name = "HeaderLabel"
-	header.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	header.offset_top = 80.0
-	header.offset_bottom = 130.0
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_font_size_override("font_size", 34)
+	header.add_theme_font_size_override("font_size", 32)
 	header.add_theme_color_override("font_color", Color(1.0, 0.88, 0.35))
 	header.text = "LEVEL UP! — CHOOSE AN ASCENSION PERK"
-	level_up_modal.add_child(header)
+	layout_vbox.add_child(header)
+	level_up_header = header
 
 	var sub = Label.new()
 	sub.name = "SubHeaderLabel"
-	sub.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	sub.offset_top = 132.0
-	sub.offset_bottom = 165.0
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_font_size_override("font_size", 16)
 	sub.add_theme_color_override("font_color", Color(0.78, 0.86, 1.0))
 	sub.text = "Click a Card's [SELECT] Button or Press [1], [2], or [3]"
-	level_up_modal.add_child(sub)
+	layout_vbox.add_child(sub)
+	level_up_sub = sub
 
 	var hbox = HBoxContainer.new()
 	hbox.name = "CardsContainer"
-	hbox.set_anchors_preset(Control.PRESET_CENTER)
-	hbox.offset_left = -470.0
-	hbox.offset_top = -150.0
-	hbox.offset_right = 470.0
-	hbox.offset_bottom = 190.0
 	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	hbox.add_theme_constant_override("separation", 26)
-	level_up_modal.add_child(hbox)
+	hbox.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	hbox.add_theme_constant_override("separation", 24)
+	layout_vbox.add_child(hbox)
+	level_up_cards_box = hbox
 
 func show_level_up_choices(level: int, choices: Array):
 	if victory_shown:
@@ -489,17 +495,18 @@ func show_level_up_choices(level: int, choices: Array):
 	card_buttons.clear()
 	modal_lock_timer = MODAL_SAFETY_LOCK_DURATION
 
-	var header: Label = level_up_modal.get_node("HeaderLabel")
-	header.text = "LEVEL %d REACHED! — CHOOSE AN ASCENSION PERK" % level
+	if is_instance_valid(level_up_header):
+		level_up_header.text = "LEVEL %d REACHED! — CHOOSE AN ASCENSION PERK" % level
 
-	var hbox: HBoxContainer = level_up_modal.get_node("CardsContainer")
-	for c in hbox.get_children():
-		c.queue_free()
+	if is_instance_valid(level_up_cards_box):
+		for c in level_up_cards_box.get_children():
+			level_up_cards_box.remove_child(c)
+			c.queue_free()
 
-	for i in range(choices.size()):
-		var perk: Dictionary = choices[i]
-		var card = _create_perk_card(i, perk)
-		hbox.add_child(card)
+		for i in range(choices.size()):
+			var perk: Dictionary = choices[i]
+			var card = _create_perk_card(i, perk)
+			level_up_cards_box.add_child(card)
 
 	level_up_modal.visible = true
 	level_up_modal.modulate.a = 0.0
@@ -510,7 +517,8 @@ func show_level_up_choices(level: int, choices: Array):
 
 func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(290, 320)
+	panel.custom_minimum_size = Vector2(280, 300)
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 	var style = StyleBoxFlat.new()
 	var accent: Color = perk.get("color", Color(0.4, 0.8, 1.0))
@@ -522,7 +530,7 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	panel.add_theme_stylebox_override("panel", style)
 
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
+	vbox.add_theme_constant_override("separation", 10)
 	panel.add_child(vbox)
 
 	var key_badge = Label.new()
@@ -534,9 +542,10 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 
 	var title_lbl = Label.new()
 	title_lbl.text = perk.get("title", "Perk")
+	title_lbl.custom_minimum_size = Vector2(240, 32)
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title_lbl.add_theme_font_size_override("font_size", 22)
+	title_lbl.add_theme_font_size_override("font_size", 21)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.85))
 	vbox.add_child(title_lbl)
 
@@ -545,10 +554,10 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 
 	var desc_lbl = Label.new()
 	desc_lbl.text = perk.get("desc", "")
+	desc_lbl.custom_minimum_size = Vector2(240, 110)
 	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	desc_lbl.add_theme_font_size_override("font_size", 15)
 	desc_lbl.add_theme_color_override("font_color", Color(0.84, 0.90, 0.98))
 	vbox.add_child(desc_lbl)
@@ -556,7 +565,7 @@ func _create_perk_card(index: int, perk: Dictionary) -> PanelContainer:
 	var btn = Button.new()
 	btn.text = "WAIT 0.8s..."
 	btn.disabled = true
-	btn.custom_minimum_size = Vector2(0, 44)
+	btn.custom_minimum_size = Vector2(240, 44)
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn.pressed.connect(func():
 		if modal_lock_timer <= 0.0:
