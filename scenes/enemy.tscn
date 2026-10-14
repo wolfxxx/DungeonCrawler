@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3 uid="uid://b3woqvvk1s6qg"]
+
+[ext_resource type="Script" uid="uid://ca136jcfxbp05" path="res://scripts/enemy.gd" id="1_enemy_script"]
+[ext_resource type="PackedScene" uid="uid://cdvkp5xw8h2nj" path="res://scenes/health_bar.tscn" id="2_healthbar"]
+[ext_resource type="PackedScene" path="res://models/enemy_skeleton.glb" id="3_skel_glb"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_enemy"]
+radius = 0.42
+height = 1.6
+
+[node name="Enemy" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 3
+script = ExtResource("1_enemy_script")
+enemy_type = "skeleton"
+display_name = "Skeleton Executioner"
+max_health = 45
+current_health = 45
+speed = 4.3
+attack_damage = 10
+
+[node name="Pivot" type="Node3D" parent="."]
+
+[node name="Model" parent="Pivot" instance=ExtResource("3_skel_glb")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("CapsuleShape3D_enemy")
+
+[node name="HealthBar" parent="." instance=ExtResource("2_healthbar")]

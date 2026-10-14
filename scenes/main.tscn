@@ -1,0 +1,17 @@
+[gd_scene load_steps=5 format=3 uid="uid://c4qw5yxhqnwxv"]
+
+[ext_resource type="PackedScene" uid="uid://dewih7vr4cqnr" path="res://scenes/dungeon_room.tscn" id="1_h5x8m"]
+[ext_resource type="PackedScene" uid="uid://cpjgnvwnrwvyk" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://dmhkl5yw3v0qj" path="res://scenes/ui.tscn" id="3_ui"]
+[ext_resource type="PackedScene" uid="uid://b5wqvvk4vath" path="res://scenes/audio_manager.tscn" id="4_audio"]
+
+[node name="Main" type="Node3D"]
+
+[node name="AudioManager" parent="." instance=ExtResource("4_audio")]
+
+[node name="DungeonRoom" parent="." instance=ExtResource("1_h5x8m")]
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5.2)
+
+[node name="UI" parent="." instance=ExtResource("3_ui")]

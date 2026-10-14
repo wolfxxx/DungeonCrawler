@@ -1,0 +1,41 @@
+[gd_scene load_steps=5 format=3 uid="uid://brqm7vxp6xwot"]
+
+[ext_resource type="Script" path="res://scripts/attack_area.gd" id="1_attack_script"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_attack"]
+radius = 2.6
+
+[sub_resource type="TorusMesh" id="TorusMesh_slash"]
+inner_radius = 1.2
+outer_radius = 2.3
+rings = 24
+ring_segments = 12
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_disc"]
+top_radius = 2.2
+bottom_radius = 2.2
+height = 0.06
+radial_segments = 24
+
+[node name="AttackArea" type="Area3D"]
+collision_layer = 0
+collision_mask = 6
+script = ExtResource("1_attack_script")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("SphereShape3D_attack")
+
+[node name="Visual" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+
+[node name="SlashRing" type="MeshInstance3D" parent="Visual"]
+mesh = SubResource("TorusMesh_slash")
+
+[node name="SlashDisc" type="MeshInstance3D" parent="Visual"]
+mesh = SubResource("CylinderMesh_disc")
+
+[node name="SlashLight" type="OmniLight3D" parent="Visual"]
+light_color = Color(0.3, 0.85, 1, 1)
+light_energy = 3.0
+omni_range = 4.5

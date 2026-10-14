@@ -1,0 +1,24 @@
+[gd_scene load_steps=4 format=3 uid="uid://cdvkp5xw8h2nj"]
+
+[ext_resource type="Script" path="res://scripts/health_bar.gd" id="1_healthbar_script"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_bg"]
+size = Vector2(1.2, 0.14)
+
+[sub_resource type="QuadMesh" id="QuadMesh_fill"]
+size = Vector2(1.14, 0.1)
+
+[node name="HealthBar" type="Node3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1, 0)
+script = ExtResource("1_healthbar_script")
+
+[node name="BgMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("QuadMesh_bg")
+skeleton = NodePath("")
+
+[node name="FillPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.01)
+
+[node name="FillMesh" type="MeshInstance3D" parent="FillPivot"]
+mesh = SubResource("QuadMesh_fill")
+skeleton = NodePath("")

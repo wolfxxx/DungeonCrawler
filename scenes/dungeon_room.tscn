@@ -1,0 +1,63 @@
+[gd_scene load_steps=6 format=3 uid="uid://dewih7vr4cqnr"]
+
+[ext_resource type="Script" path="res://scripts/dungeon_room.gd" id="1_dungeon_script"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_dungeon"]
+sky_top_color = Color(0.03, 0.03, 0.06, 1)
+sky_horizon_color = Color(0.07, 0.06, 0.11, 1)
+ground_bottom_color = Color(0.02, 0.02, 0.03, 1)
+ground_horizon_color = Color(0.05, 0.05, 0.08, 1)
+
+[sub_resource type="Sky" id="Sky_dungeon"]
+sky_material = SubResource("ProceduralSkyMaterial_dungeon")
+
+[sub_resource type="Environment" id="Environment_dungeon"]
+background_mode = 2
+sky = SubResource("Sky_dungeon")
+ambient_light_source = 2
+ambient_light_color = Color(0.26, 0.28, 0.38, 1)
+ambient_light_energy = 0.85
+tonemap_mode = 3
+tonemap_exposure = 1.1
+glow_enabled = true
+glow_intensity = 0.9
+glow_strength = 1.05
+glow_bloom = 0.18
+fog_enabled = true
+fog_light_color = Color(0.07, 0.06, 0.11, 1)
+fog_density = 0.008
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(40, 1, 120)
+
+[node name="DungeonRoom" type="Node3D"]
+script = ExtResource("1_dungeon_script")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_dungeon")
+
+[node name="MoonLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.383022, 0.321394, 0, 0.642788, 0.766044, -0.5, -0.663414, 0.55667, 0, 18, 0)
+light_color = Color(0.68, 0.76, 0.96, 1)
+light_energy = 0.85
+shadow_enabled = true
+
+[node name="GroundCollider" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundCollider"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, -30)
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Architecture" type="Node3D" parent="."]
+
+[node name="Props" type="Node3D" parent="."]
+
+[node name="TorchLights" type="Node3D" parent="."]
+
+[node name="Gates" type="Node3D" parent="."]
+
+[node name="Enemies" type="Node3D" parent="."]
+
+[node name="Pickups" type="Node3D" parent="."]

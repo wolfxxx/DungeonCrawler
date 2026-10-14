@@ -1,0 +1,114 @@
+[gd_scene load_steps=22 format=3 uid="uid://b5wqvvk4vath"]
+
+[ext_resource type="Script" path="res://scripts/audio_manager.gd" id="1_audio_script"]
+[ext_resource type="AudioStream" path="res://sounds/player_attack.mp3" id="2_snd"]
+[ext_resource type="AudioStream" path="res://sounds/player_special.mp3" id="3_snd"]
+[ext_resource type="AudioStream" path="res://sounds/player_dash.mp3" id="4_snd"]
+[ext_resource type="AudioStream" path="res://sounds/enemy_hit.mp3" id="5_snd"]
+[ext_resource type="AudioStream" path="res://sounds/enemy_death.mp3" id="6_snd"]
+[ext_resource type="AudioStream" path="res://sounds/player_hit.mp3" id="7_snd"]
+[ext_resource type="AudioStream" path="res://sounds/pickup_health.mp3" id="8_snd"]
+[ext_resource type="AudioStream" path="res://sounds/pickup_gold.mp3" id="9_snd"]
+[ext_resource type="AudioStream" path="res://sounds/chest_open.mp3" id="10_snd"]
+[ext_resource type="AudioStream" path="res://sounds/barrel_break.mp3" id="11_snd"]
+[ext_resource type="AudioStream" path="res://sounds/door_open.mp3" id="12_snd"]
+[ext_resource type="AudioStream" path="res://sounds/boss_roar.mp3" id="13_snd"]
+[ext_resource type="AudioStream" path="res://sounds/fireball.mp3" id="14_snd"]
+[ext_resource type="AudioStream" path="res://sounds/victory.mp3" id="15_snd"]
+[ext_resource type="AudioStream" path="res://sounds/game_over.mp3" id="16_snd"]
+[ext_resource type="AudioStream" path="res://sounds/vo_enter.mp3" id="17_snd"]
+[ext_resource type="AudioStream" path="res://sounds/vo_cleared.mp3" id="18_snd"]
+[ext_resource type="AudioStream" path="res://sounds/vo_boss.mp3" id="19_snd"]
+[ext_resource type="AudioStream" path="res://sounds/vo_victory.mp3" id="20_snd"]
+[ext_resource type="AudioStream" path="res://sounds/music_dungeon.mp3" id="21_snd"]
+
+[node name="AudioManager" type="Node"]
+script = ExtResource("1_audio_script")
+
+[node name="PlayerAttack" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("2_snd")
+volume_db = -4.0
+max_polyphony = 3
+
+[node name="PlayerSpecial" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("3_snd")
+volume_db = -2.0
+
+[node name="PlayerDash" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("4_snd")
+volume_db = -4.0
+
+[node name="EnemyHit" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("5_snd")
+volume_db = -3.0
+max_polyphony = 4
+
+[node name="EnemyDeath" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("6_snd")
+volume_db = -2.0
+max_polyphony = 3
+
+[node name="PlayerHit" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("7_snd")
+volume_db = -2.0
+
+[node name="Pickup" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("8_snd")
+volume_db = -4.0
+max_polyphony = 3
+
+[node name="PickupGold" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("9_snd")
+volume_db = -5.0
+max_polyphony = 4
+
+[node name="ChestOpen" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("10_snd")
+volume_db = -2.0
+
+[node name="BarrelBreak" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("11_snd")
+volume_db = -3.0
+max_polyphony = 3
+
+[node name="DoorOpen" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("12_snd")
+volume_db = -2.0
+
+[node name="BossRoar" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("13_snd")
+volume_db = 0.0
+
+[node name="Fireball" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("14_snd")
+volume_db = -5.0
+max_polyphony = 4
+
+[node name="Victory" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("15_snd")
+volume_db = -1.0
+
+[node name="GameOver" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("16_snd")
+volume_db = -1.0
+
+[node name="VoEnter" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("17_snd")
+volume_db = 1.0
+
+[node name="VoCleared" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("18_snd")
+volume_db = 1.0
+
+[node name="VoBoss" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("19_snd")
+volume_db = 2.0
+
+[node name="VoVictory" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("20_snd")
+volume_db = 2.0
+
+[node name="MusicDungeon" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("21_snd")
+volume_db = -12.0
+autoplay = true
