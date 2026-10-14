@@ -4,7 +4,9 @@ extends Area3D
 ## Both check 3D physics line-of-sight so attacks never hit through walls or closed doors
 
 var damage: int = 18
+var is_crit: bool = false
 var is_special: bool = false
+var chill_duration: float = 0.0
 var knockback_force: float = 9.0
 var attacker: Node3D = null
 var forward_dir: Vector3 = Vector3.FORWARD
@@ -36,10 +38,10 @@ func _ready():
 		col_shape.shape = sphere
 		visual.scale = Vector3(0.55, 1.0, 0.55)
 	else:
-		ring_mat.albedo_color = Color(0.25, 0.92, 1.0, 0.85)
-		disc_mat.albedo_color = Color(0.2, 0.75, 1.0, 0.32)
-		slash_light.light_color = Color(0.25, 0.9, 1.0)
-		slash_light.light_energy = 3.0
+		ring_mat.albedo_color = Color(1.0, 0.35, 0.2, 0.92) if is_crit else Color(0.25, 0.92, 1.0, 0.85)
+		disc_mat.albedo_color = Color(1.0, 0.25, 0.15, 0.4) if is_crit else Color(0.2, 0.75, 1.0, 0.32)
+		slash_light.light_color = Color(1.0, 0.4, 0.2) if is_crit else Color(0.25, 0.9, 1.0)
+		slash_light.light_energy = 3.6 if is_crit else 3.0
 		var sphere = SphereShape3D.new()
 		sphere.radius = 1.85
 		col_shape.shape = sphere
@@ -83,11 +85,11 @@ func _has_clear_line_of_sight(origin: Vector3, target: Node3D) -> bool:
 	var collider = hit.get("collider")
 	if collider and collider.is_in_group("breakables"):
 		return true
-	# Blocked by a solid dungeon wall or closed door!
 	return false
 
 func _apply_hits():
 	var hit_any = false
+	var first_enemy_hit: Node3D = null
 	var origin = attacker.global_position if is_instance_valid(attacker) else global_position
 
 	for body in get_overlapping_bodies():
@@ -98,21 +100,23 @@ func _apply_hits():
 		var dist = to_target.length()
 		var dir = to_target.normalized() if dist > 0.01 else forward_dir
 
-		# For normal attacks, enforce a forward 140-degree slash cone so behind-the-back swings miss
 		if not is_special and dist > 0.55:
 			if forward_dir.dot(dir) < -0.15:
 				continue
 
-		# Prevent slashing through dungeon walls or closed doors
 		if not _has_clear_line_of_sight(origin, body):
 			continue
 
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
-			body.take_damage(damage, dir * knockback_force, is_special)
+			body.take_damage(damage, dir * knockback_force, is_special, is_crit)
+			if chill_duration > 0.0 and body.has_method("apply_chill"):
+				body.apply_chill(chill_duration)
 			hit_any = true
+			if not first_enemy_hit:
+				first_enemy_hit = body
 		elif body.is_in_group("breakables") and body.has_method("take_damage"):
 			body.take_damage(damage)
 			hit_any = true
 
 	if hit_any and is_instance_valid(attacker) and attacker.has_method("on_successful_hit"):
-		attacker.on_successful_hit(is_special)
+		attacker.on_successful_hit(is_special, first_enemy_hit)

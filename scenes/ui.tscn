@@ -3,20 +3,21 @@
 [ext_resource type="Script" path="res://scripts/ui.gd" id="1_ui_script"]
 
 [node name="UI" type="CanvasLayer"]
+process_mode = 3
 script = ExtResource("1_ui_script")
 
 [node name="HUDPanel" type="ColorRect" parent="."]
 offset_left = 16.0
 offset_top = 16.0
-offset_right = 360.0
-offset_bottom = 152.0
-color = Color(0.06, 0.06, 0.1, 0.82)
+offset_right = 376.0
+offset_bottom = 186.0
+color = Color(0.06, 0.06, 0.1, 0.84)
 
 [node name="HealthBar" type="ProgressBar" parent="."]
 offset_left = 28.0
-offset_top = 26.0
-offset_right = 348.0
-offset_bottom = 52.0
+offset_top = 24.0
+offset_right = 364.0
+offset_bottom = 48.0
 max_value = 120.0
 value = 120.0
 show_percentage = false
@@ -34,9 +35,9 @@ vertical_alignment = 1
 
 [node name="StaminaBar" type="ProgressBar" parent="."]
 offset_left = 28.0
-offset_top = 58.0
-offset_right = 348.0
-offset_bottom = 78.0
+offset_top = 53.0
+offset_right = 364.0
+offset_bottom = 73.0
 max_value = 100.0
 value = 100.0
 show_percentage = false
@@ -53,22 +54,43 @@ text = "STAMINA: 100%"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="XPBar" type="ProgressBar" parent="."]
+offset_left = 28.0
+offset_top = 78.0
+offset_right = 364.0
+offset_bottom = 98.0
+max_value = 75.0
+value = 0.0
+show_percentage = false
+
+[node name="XPLabel" type="Label" parent="XPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 12
+text = "LVL 1  —  XP: 0 / 75"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="Score" type="Label" parent="."]
 offset_left = 28.0
-offset_top = 84.0
-offset_right = 348.0
-offset_bottom = 108.0
+offset_top = 104.0
+offset_right = 364.0
+offset_bottom = 128.0
 theme_override_colors/font_color = Color(0.95, 0.85, 0.55, 1)
 text = "Enemies Remaining: 19"
 
 [node name="StatsLabel" type="Label" parent="."]
 offset_left = 28.0
-offset_top = 108.0
-offset_right = 348.0
-offset_bottom = 146.0
+offset_top = 128.0
+offset_right = 364.0
+offset_bottom = 180.0
 theme_override_colors/font_color = Color(0.75, 0.9, 1, 1)
-theme_override_font_sizes/font_size = 13
-text = "Gold: 0  |  ATK: 20  |  Relics: None"
+theme_override_font_sizes/font_size = 12
+text = "Gold: 0  |  ATK: 20  |  Perks: None"
 autowrap_mode = 2
 
 [node name="ChamberLabel" type="Label" parent="."]

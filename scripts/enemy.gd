@@ -35,6 +35,8 @@ var flank_angle_offset: float = 0.0
 var strafe_dir: float = 1.0
 var strafe_timer: float = 0.0
 var retreat_timer: float = 0.0
+var chill_timer: float = 0.0
+var base_speed: float = 4.4
 var is_blocking: bool = false
 var block_timer: float = 0.0
 var shield_visual: MeshInstance3D = null
@@ -52,6 +54,7 @@ var part_leg_r: Node3D
 func _ready():
 	add_to_group("enemies")
 	current_health = max_health
+	base_speed = speed
 	walk_cycle = randf() * TAU
 	flank_angle_offset = randf_range(-PI * 0.65, PI * 0.65)
 	strafe_dir = 1.0 if randf() > 0.5 else -1.0
@@ -123,6 +126,12 @@ func _physics_process(delta: float):
 
 	if retreat_timer > 0.0:
 		retreat_timer -= delta
+
+	if chill_timer > 0.0:
+		chill_timer -= delta
+		speed = base_speed * 0.52
+	else:
+		speed = base_speed
 
 	if block_timer > 0.0:
 		block_timer -= delta
@@ -690,7 +699,11 @@ func _animate_monster(delta: float):
 		if part_leg_r:
 			part_leg_r.rotation_degrees.x = move_toward(part_leg_r.rotation_degrees.x, 0.0, 140.0 * delta)
 
-func take_damage(amount: int, kb: Vector3 = Vector3.ZERO, is_special: bool = false):
+func apply_chill(duration: float):
+	chill_timer = maxf(chill_timer, duration)
+	_spawn_status_text("CHILLED!", Color(0.4, 0.9, 1.0))
+
+func take_damage(amount: int, kb: Vector3 = Vector3.ZERO, is_special: bool = false, is_crit: bool = false):
 	if is_dead:
 		return
 	if is_instance_valid(player) and not _has_clear_los(player.global_position, global_position):
@@ -736,7 +749,7 @@ func take_damage(amount: int, kb: Vector3 = Vector3.ZERO, is_special: bool = fal
 		if ui and ui.has_method("update_boss_bar"):
 			ui.update_boss_bar(current_health, max_health)
 
-	_spawn_damage_number(amount)
+	_spawn_damage_number(amount, is_crit)
 
 	# Hit scale punch
 	var punch = create_tween()
@@ -766,12 +779,12 @@ func _spawn_status_text(txt: String, col: Color):
 	tw.tween_property(lbl, "modulate:a", 0.0, 0.65)
 	tw.chain().tween_callback(lbl.queue_free)
 
-func _spawn_damage_number(amount: int):
+func _spawn_damage_number(amount: int, is_crit: bool = false):
 	var lbl = Label3D.new()
-	lbl.text = str(amount)
-	lbl.font_size = 46
-	lbl.outline_size = 10
-	lbl.modulate = Color(1.0, 0.9, 0.25) if amount < 30 else Color(1.0, 0.45, 0.1)
+	lbl.text = ("CRIT! " + str(amount)) if is_crit else str(amount)
+	lbl.font_size = 56 if is_crit else 46
+	lbl.outline_size = 12 if is_crit else 10
+	lbl.modulate = Color(1.0, 0.25, 0.2) if is_crit else (Color(1.0, 0.9, 0.25) if amount < 30 else Color(1.0, 0.45, 0.1))
 	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	lbl.no_depth_test = true
 	get_parent().add_child(lbl)
@@ -793,6 +806,22 @@ func die():
 	var audio = get_tree().get_first_node_in_group("audio_manager")
 	if audio:
 		audio.play_enemy_death()
+
+	# Award RPG XP to Player based on monster tier
+	if is_instance_valid(player) and player.has_method("gain_xp"):
+		var xp_reward := 28
+		match enemy_type:
+			"goblin":
+				xp_reward = 25
+			"skeleton":
+				xp_reward = 32
+			"mage":
+				xp_reward = 45
+			"golem":
+				xp_reward = 60
+			"boss":
+				xp_reward = 200
+		player.gain_xp(xp_reward)
 
 	# Drop loot
 	var pickup_scene = preload("res://scenes/health_pickup.tscn")
