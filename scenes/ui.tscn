@@ -175,5 +175,5 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.85, 0.88, 0.95, 0.9)
 theme_override_font_sizes/font_size = 15
-text = "WASD: Move  |  Click/Space: 3-Hit Slash  |  Shift/R-Click: Dash  |  Q/E: Nova  |  F: Merchant / Stairs"
+text = "WASD: Move  |  Click/Space: Slash  |  Shift/R-Click: Dash  |  Q/E: Nova  |  F: Merchant/Stairs  |  ESC: Pause"
 horizontal_alignment = 1

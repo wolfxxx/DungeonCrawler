@@ -20,6 +20,10 @@ var victory_shown: bool = false
 var current_floor_num: int = 1
 var max_floors_num: int = 3
 
+var pause_modal: Control = null
+var pause_stats_lbl: Label = null
+var pause_mute_btn: Button = null
+
 var level_up_modal: Control = null
 var level_up_header: Label = null
 var level_up_sub: Label = null
@@ -87,6 +91,7 @@ func _ready():
 	boss_bar.modulate = Color(1.0, 0.25, 0.18)
 	_build_level_up_modal()
 	_build_merchant_modal()
+	_build_pause_modal()
 	await get_tree().process_frame
 	update_enemies_remaining()
 
@@ -114,6 +119,22 @@ func _process(delta: float):
 			_refresh_merchant_cards()
 
 func _input(event: InputEvent):
+	# Handle Pause Modal input when open
+	if pause_modal and pause_modal.visible:
+		if event is InputEventKey and event.pressed and not event.echo:
+			var kc = event.keycode
+			var pkc = event.physical_keycode
+			if kc == KEY_ESCAPE or pkc == KEY_ESCAPE or kc == KEY_P or pkc == KEY_P:
+				resume_pause_menu()
+				get_viewport().set_input_as_handled()
+			elif kc == KEY_R or pkc == KEY_R:
+				_restart_from_pause()
+				get_viewport().set_input_as_handled()
+			elif kc == KEY_M or pkc == KEY_M:
+				_toggle_audio_mute()
+				get_viewport().set_input_as_handled()
+		return
+
 	# Handle Merchant Modal input when open
 	if merchant_modal and merchant_modal.visible:
 		if merchant_lock_timer > 0.0:
@@ -141,12 +162,21 @@ func _input(event: InputEvent):
 		return
 
 	if not level_up_modal or not level_up_modal.visible:
-		# Allow pressing TAB at any time to open a queued level-up draft even mid-combat
-		if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_TAB:
-			var player = get_tree().get_first_node_in_group("player")
-			if player and player.get("pending_level_ups") > 0 and player.has_method("_trigger_next_level_up_draft"):
-				player._trigger_next_level_up_draft()
+		if event is InputEventKey and event.pressed and not event.echo:
+			var kc = event.keycode
+			var pkc = event.physical_keycode
+			# Press ESC or P at any time during gameplay to pause the game
+			if kc == KEY_ESCAPE or pkc == KEY_ESCAPE or kc == KEY_P or pkc == KEY_P:
+				open_pause_menu()
 				get_viewport().set_input_as_handled()
+				return
+			# Allow pressing TAB at any time to open a queued level-up draft even mid-combat
+			elif pkc == KEY_TAB or kc == KEY_TAB:
+				var player = get_tree().get_first_node_in_group("player")
+				if player and player.get("pending_level_ups") > 0 and player.has_method("_trigger_next_level_up_draft"):
+					player._trigger_next_level_up_draft()
+					get_viewport().set_input_as_handled()
+				return
 		return
 
 	# Absorb all clicks/keys while the 0.75s anti-misclick safety lock is active
@@ -169,7 +199,7 @@ func _input(event: InputEvent):
 			get_viewport().set_input_as_handled()
 
 func is_level_up_open() -> bool:
-	return (level_up_modal != null and level_up_modal.visible) or (merchant_modal != null and merchant_modal.visible)
+	return (level_up_modal != null and level_up_modal.visible) or (merchant_modal != null and merchant_modal.visible) or (pause_modal != null and pause_modal.visible)
 
 func update_health(current: int, maximum: int):
 	health_bar.max_value = maximum
@@ -603,6 +633,9 @@ func show_victory():
 	if merchant_modal and merchant_modal.visible:
 		merchant_modal.visible = false
 		get_tree().paused = false
+	if pause_modal and pause_modal.visible:
+		pause_modal.visible = false
+		get_tree().paused = false
 
 	score_label.text = "Victory! All 3 Dungeon Floors Cleansed!"
 	score_label.modulate = Color(0.35, 1.0, 0.45)
@@ -618,3 +651,132 @@ func show_victory():
 	var game_over = game_over_scene.instantiate()
 	game_over.is_victory = true
 	get_tree().current_scene.add_child(game_over)
+
+# ============================================================================
+# PAUSE MENU MODAL ([ESC] / [P])
+# ============================================================================
+
+func _build_pause_modal():
+	pause_modal = Control.new()
+	pause_modal.name = "PauseModal"
+	pause_modal.process_mode = Node.PROCESS_MODE_ALWAYS
+	pause_modal.visible = false
+	add_child(pause_modal)
+	pause_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var dimmer = ColorRect.new()
+	dimmer.color = Color(0.02, 0.02, 0.05, 0.84)
+	pause_modal.add_child(dimmer)
+	dimmer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var center_vbox = VBoxContainer.new()
+	center_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	pause_modal.add_child(center_vbox)
+	center_vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var panel = PanelContainer.new()
+	panel.custom_minimum_size = Vector2(460, 340)
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.09, 0.14, 0.97)
+	style.border_color = Color(0.95, 0.78, 0.32)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(12)
+	style.set_content_margin_all(26)
+	panel.add_theme_stylebox_override("panel", style)
+	center_vbox.add_child(panel)
+
+	var vbox = VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+
+	var title_lbl = Label.new()
+	title_lbl.text = "GAME PAUSED"
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_lbl.add_theme_font_size_override("font_size", 32)
+	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.35))
+	vbox.add_child(title_lbl)
+
+	var sep = HSeparator.new()
+	vbox.add_child(sep)
+
+	var stats_lbl = Label.new()
+	stats_lbl.custom_minimum_size = Vector2(390, 64)
+	stats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stats_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stats_lbl.add_theme_font_size_override("font_size", 15)
+	stats_lbl.add_theme_color_override("font_color", Color(0.82, 0.90, 1.0))
+	vbox.add_child(stats_lbl)
+	pause_stats_lbl = stats_lbl
+
+	var resume_btn = Button.new()
+	resume_btn.custom_minimum_size = Vector2(340, 44)
+	resume_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	resume_btn.text = "RESUME GAME [ESC / P]"
+	resume_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	resume_btn.pressed.connect(resume_pause_menu)
+	vbox.add_child(resume_btn)
+
+	var mute_btn = Button.new()
+	mute_btn.custom_minimum_size = Vector2(340, 42)
+	mute_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	mute_btn.text = "MUTE AUDIO [M]"
+	mute_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	mute_btn.pressed.connect(_toggle_audio_mute)
+	vbox.add_child(mute_btn)
+	pause_mute_btn = mute_btn
+
+	var restart_btn = Button.new()
+	restart_btn.custom_minimum_size = Vector2(340, 42)
+	restart_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	restart_btn.text = "RESTART RUN [R]"
+	restart_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	restart_btn.pressed.connect(_restart_from_pause)
+	vbox.add_child(restart_btn)
+
+func open_pause_menu():
+	if victory_shown:
+		return
+	var player = get_tree().get_first_node_in_group("player")
+	if not player or player.get("is_dead"):
+		return
+	if (level_up_modal and level_up_modal.visible) or (merchant_modal and merchant_modal.visible):
+		return
+
+	if is_instance_valid(pause_stats_lbl):
+		var crit_pct = int(round(float(player.get("crit_chance")) * 100.0))
+		pause_stats_lbl.text = "Floor %d/%d  •  Level %d\nHP: %d/%d  •  ATK: %d  •  Crit: %d%%  •  Gold: %d" % [
+			current_floor_num, max_floors_num, player.level,
+			player.current_health, player.max_health, player.attack_damage, crit_pct, player.gold
+		]
+	_update_mute_button_text()
+	pause_modal.visible = true
+	get_tree().paused = true
+
+func resume_pause_menu():
+	if not pause_modal or not pause_modal.visible:
+		return
+	pause_modal.visible = false
+	get_tree().paused = false
+
+func _toggle_audio_mute():
+	var master_idx = AudioServer.get_bus_index("Master")
+	if master_idx >= 0:
+		AudioServer.set_bus_mute(master_idx, not AudioServer.is_bus_mute(master_idx))
+	_update_mute_button_text()
+
+func _update_mute_button_text():
+	if not is_instance_valid(pause_mute_btn):
+		return
+	var master_idx = AudioServer.get_bus_index("Master")
+	var muted = AudioServer.is_bus_mute(master_idx) if master_idx >= 0 else false
+	pause_mute_btn.text = ("UNMUTE AUDIO [M]" if muted else "MUTE AUDIO [M]")
+
+func _restart_from_pause():
+	pause_modal.visible = false
+	get_tree().paused = false
+	get_tree().reload_current_scene()
