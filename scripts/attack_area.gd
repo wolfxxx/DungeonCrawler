@@ -1,6 +1,7 @@
 extends Area3D
 ## 3D Sword Slash & Whirlwind Nova Attack Area
-## Normal slashes require directional arc check (front 135° cone); Special Nova hits 360°
+## Normal slashes require directional arc check (front 140° cone); Special Nova hits 360°
+## Both check 3D physics line-of-sight so attacks never hit through walls or closed doors
 
 var damage: int = 18
 var is_special: bool = false
@@ -62,6 +63,29 @@ func _ready():
 	await get_tree().physics_frame
 	_apply_hits()
 
+func _has_clear_line_of_sight(origin: Vector3, target: Node3D) -> bool:
+	var space_state = get_world_3d().direct_space_state
+	if not space_state:
+		return true
+	var from_pt = origin + Vector3(0.0, 0.85, 0.0)
+	var to_pt = target.global_position + Vector3(0.0, 0.85, 0.0)
+	var query = PhysicsRayQueryParameters3D.create(from_pt, to_pt, 1)
+	var exclude_rids: Array[RID] = []
+	if is_instance_valid(attacker) and attacker is CollisionObject3D:
+		exclude_rids.append((attacker as CollisionObject3D).get_rid())
+	if is_instance_valid(target) and target is CollisionObject3D:
+		exclude_rids.append((target as CollisionObject3D).get_rid())
+	query.exclude = exclude_rids
+
+	var hit = space_state.intersect_ray(query)
+	if hit.is_empty():
+		return true
+	var collider = hit.get("collider")
+	if collider and collider.is_in_group("breakables"):
+		return true
+	# Blocked by a solid dungeon wall or closed door!
+	return false
+
 func _apply_hits():
 	var hit_any = false
 	var origin = attacker.global_position if is_instance_valid(attacker) else global_position
@@ -78,6 +102,10 @@ func _apply_hits():
 		if not is_special and dist > 0.55:
 			if forward_dir.dot(dir) < -0.15:
 				continue
+
+		# Prevent slashing through dungeon walls or closed doors
+		if not _has_clear_line_of_sight(origin, body):
+			continue
 
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
 			body.take_damage(damage, dir * knockback_force, is_special)

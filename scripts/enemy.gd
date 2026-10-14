@@ -171,6 +171,37 @@ func find_player():
 	if not player:
 		player = get_tree().get_first_node_in_group("player") as CharacterBody3D
 
+func _has_clear_los(from_pos: Vector3, to_pos: Vector3) -> bool:
+	var space_state = get_world_3d().direct_space_state
+	if not space_state:
+		return true
+	var query = PhysicsRayQueryParameters3D.create(from_pos + Vector3(0.0, 0.85, 0.0), to_pos + Vector3(0.0, 0.85, 0.0), 1)
+	var exclude_rids: Array[RID] = [get_rid()]
+	if is_instance_valid(player):
+		exclude_rids.append(player.get_rid())
+	query.exclude = exclude_rids
+	var hit = space_state.intersect_ray(query)
+	if hit.is_empty():
+		return true
+	var collider = hit.get("collider")
+	if collider and collider.is_in_group("breakables"):
+		return true
+	return false
+
+func _get_navigation_dir(target_pos: Vector3) -> Vector3:
+	# If a chamber divider wall (-8, -28, -48) lies between this enemy and the player, steer through the central doorway (x = 0)
+	for div_z in [-8.0, -28.0, -48.0]:
+		var crosses_divider = (global_position.z < div_z - 0.3 and target_pos.z > div_z + 0.3) or (global_position.z > div_z + 0.3 and target_pos.z < div_z - 0.3)
+		if crosses_divider and absf(global_position.x) > 0.95:
+			var doorway_wp = Vector3(0.0, 0.0, div_z)
+			var to_wp = doorway_wp - global_position
+			to_wp.y = 0.0
+			if to_wp.length() > 0.1:
+				return to_wp.normalized()
+	var to_target = target_pos - global_position
+	to_target.y = 0.0
+	return to_target.normalized() if to_target.length() > 0.01 else Vector3.FORWARD
+
 func _compute_separation_force() -> Vector3:
 	var sep := Vector3.ZERO
 	var desired_space := 2.1 if enemy_type != "golem" else 2.8
@@ -185,11 +216,12 @@ func _compute_separation_force() -> Vector3:
 	return sep
 
 func follow_and_fight(delta: float, dist: float):
-	var to_player = (player.global_position - global_position)
-	to_player.y = 0.0
-	var norm_dir = to_player.normalized() if to_player.length() > 0.01 else Vector3.FORWARD
+	var norm_dir = _get_navigation_dir(player.global_position)
 	var tangent = Vector3(-norm_dir.z, 0.0, norm_dir.x) * strafe_dir
 	var sep = _compute_separation_force()
+	var has_los = _has_clear_los(global_position, player.global_position)
+	if not has_los:
+		tangent = Vector3.ZERO
 
 	# Face player smoothly (unless locked in lunge windup)
 	if not is_winding_up:
@@ -198,6 +230,10 @@ func follow_and_fight(delta: float, dist: float):
 
 	if is_winding_up:
 		velocity = knockback_vel
+		return
+
+	if not has_los:
+		velocity = norm_dir * speed + sep + knockback_vel
 		return
 
 	match enemy_type:
@@ -377,7 +413,7 @@ func _perform_telegraphed_cleave(lunge_dir: Vector3):
 		s_tw.tween_property(part_arm_r, "rotation_degrees:x", 75.0, 0.10)
 		s_tw.tween_property(part_arm_r, "rotation_degrees:x", 0.0, 0.18)
 
-	if player.global_position.distance_to(strike_pos) <= strike_radius + 0.35:
+	if player.global_position.distance_to(strike_pos) <= strike_radius + 0.35 and _has_clear_los(global_position, player.global_position):
 		if player.has_method("take_damage"):
 			player.take_damage(attack_damage)
 
@@ -410,7 +446,7 @@ func _perform_goblin_pounce(pounce_dir: Vector3):
 	await get_tree().create_timer(0.16).timeout
 	if is_dead or not is_instance_valid(player):
 		return
-	if global_position.distance_to(player.global_position) <= 1.85:
+	if global_position.distance_to(player.global_position) <= 1.85 and _has_clear_los(global_position, player.global_position):
 		if player.has_method("take_damage"):
 			player.take_damage(attack_damage + 3)
 
@@ -434,7 +470,7 @@ func _perform_goblin_quick_slash(_dir: Vector3):
 	is_winding_up = false
 	if is_dead or not is_instance_valid(player):
 		return
-	if global_position.distance_to(player.global_position) <= attack_range + 0.35:
+	if global_position.distance_to(player.global_position) <= attack_range + 0.35 and _has_clear_los(global_position, player.global_position):
 		if player.has_method("take_damage"):
 			player.take_damage(attack_damage)
 
@@ -480,7 +516,7 @@ func _perform_golem_ground_slam():
 	if player.has_method("add_trauma"):
 		player.add_trauma(0.35)
 
-	if player.global_position.distance_to(slam_center) <= slam_radius:
+	if player.global_position.distance_to(slam_center) <= slam_radius and _has_clear_los(slam_center, player.global_position):
 		if player.has_method("take_damage"):
 			player.take_damage(attack_damage + 4)
 
@@ -656,6 +692,8 @@ func _animate_monster(delta: float):
 
 func take_damage(amount: int, kb: Vector3 = Vector3.ZERO, is_special: bool = false):
 	if is_dead:
+		return
+	if is_instance_valid(player) and not _has_clear_los(player.global_position, global_position):
 		return
 
 	# Check Skeleton Shield Guard: frontal normal slashes are blocked unless flanked or hit with Whirlwind Nova!

@@ -47,6 +47,7 @@ var gate_nodes: Dictionary = {} # chamber_id -> StaticBody3D gate
 var door_meshes: Dictionary = {} # chamber_id -> Node3D (wall_doorway_door)
 var door_labels: Dictionary = {} # chamber_id -> Label3D
 var door_lights: Dictionary = {} # chamber_id -> OmniLight3D
+var entered_chambers: Dictionary = {0: true} # chamber_id -> bool
 var torch_lights: Array[OmniLight3D] = []
 var current_chamber: int = 0
 var time_accum: float = 0.0
@@ -75,6 +76,13 @@ func _process(delta: float):
 	var player = get_tree().get_first_node_in_group("player") as Node3D
 	if player:
 		var pz = player.global_position.z
+		if pz < -47.2 and not gate_nodes.has(2):
+			entered_chambers[3] = true
+		if pz < -27.2 and not gate_nodes.has(1):
+			entered_chambers[2] = true
+		if pz < -7.2 and not gate_nodes.has(0):
+			entered_chambers[1] = true
+
 		var cid = 0
 		if pz < -48.0:
 			cid = 3
@@ -84,6 +92,7 @@ func _process(delta: float):
 			cid = 1
 		if cid != current_chamber:
 			current_chamber = cid
+			entered_chambers[cid] = true
 			var ui = get_tree().get_first_node_in_group("ui")
 			if ui and ui.has_method("set_chamber_title"):
 				ui.set_chamber_title(chamber_names[current_chamber])
@@ -432,7 +441,7 @@ func _spawn_custom_enemy(etype: String, dname: String, pos: Vector3, cid: int, h
 func is_chamber_accessible(cid: int) -> bool:
 	if cid <= 0:
 		return true
-	return not gate_nodes.has(cid - 1)
+	return (not gate_nodes.has(cid - 1)) and entered_chambers.has(cid)
 
 func on_enemy_defeated(cid: int, was_boss: bool):
 	# Check if all enemies in chamber `cid` are defeated
