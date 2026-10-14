@@ -136,7 +136,6 @@ func _unhandled_input(event: InputEvent):
 		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT and not is_attacking:
-			_aim_toward_mouse()
 			perform_attack()
 		elif event.button_index == MOUSE_BUTTON_RIGHT and not is_dashing:
 			perform_dash()
@@ -224,8 +223,13 @@ func perform_attack():
 	if audio:
 		audio.play_attack()
 
-	# Forward lunge on combo
-	var forward = -pivot.global_transform.basis.z.normalized()
+	# Snap facing to current movement input if held, then fire straight forward along Knight's facing direction
+	var input_dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if input_dir.length() > 0.1:
+		var move_dir = Vector3(input_dir.x, 0.0, input_dir.y).normalized()
+		pivot.rotation.y = atan2(-move_dir.x, -move_dir.z)
+
+	var forward = Vector3(-sin(pivot.rotation.y), 0.0, -cos(pivot.rotation.y)).normalized()
 	velocity += forward * (2.6 if combo_step < 3 else 4.8)
 
 	# Animate sword arm slash (in Model's local space where +Z is forward and +X is left)
@@ -363,7 +367,7 @@ func perform_dash():
 	var input_dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var dash_dir = Vector3(input_dir.x, 0.0, input_dir.y).normalized()
 	if dash_dir == Vector3.ZERO:
-		dash_dir = -pivot.global_transform.basis.z.normalized()
+		dash_dir = Vector3(-sin(pivot.rotation.y), 0.0, -cos(pivot.rotation.y)).normalized()
 	else:
 		pivot.rotation.y = atan2(-dash_dir.x, -dash_dir.z)
 
